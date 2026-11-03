@@ -14,7 +14,8 @@ local function serializeValue(v, out, depth)
     local t = type(v)
     if t == "number" then
         if v ~= v or v == math.huge or v == -math.huge then error("유효하지 않은 숫자") end
-        if floor(v) == v then out[#out + 1] = "n" .. string.format("%d", v) .. ";"
+        -- %d 는 일부 플랫폼에서 32비트로 잘릴 수 있으므로 %.0f 사용 (2^53 까지 정확)
+        if floor(v) == v then out[#out + 1] = "n" .. string.format("%.0f", v) .. ";"
         else out[#out + 1] = "n" .. string.format("%.17g", v) .. ";" end
     elseif t == "string" then
         out[#out + 1] = "s" .. #v .. ":" .. v

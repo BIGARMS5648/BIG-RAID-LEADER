@@ -1,0 +1,17 @@
+<Bindings>
+	<Binding name="BRL_TOGGLE" header="BIGRAIDLEADER" category="ADDONS">
+		BigRaidLeader_ToggleUI()
+	</Binding>
+	<Binding name="BRL_READYCHECK" category="ADDONS">
+		BigRaidLeader_Binding("READY")
+	</Binding>
+	<Binding name="BRL_PULL" category="ADDONS">
+		BigRaidLeader_Binding("PULL")
+	</Binding>
+	<Binding name="BRL_CANCELPULL" category="ADDONS">
+		BigRaidLeader_Binding("CANCELPULL")
+	</Binding>
+	<Binding name="BRL_AUCTION" category="ADDONS">
+		BigRaidLeader_Binding("AUCTION")
+	</Binding>
+</Bindings>

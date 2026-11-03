@@ -1,0 +1,78 @@
+-- BIG RAID LEADER - 준비 상태 화면
+local _, BRL = ...
+local T, W, L = BRL.Theme, BRL.Widgets, BRL.L
+local UI, D = BRL.UI, BRL.Dialogs
+
+local Ready = BRL.Readiness
+
+local function build(page)
+    UI:PageHeader(page, L.MENU_READY, "준비 확인 · 상태 점검 (API로 확인할 수 없는 항목은 수동 점검)")
+    page.summary = W.Label(page, "", 12, "gold")
+    page.summary:SetPoint("TOPLEFT", 4, -30)
+    local cols = {
+        { title = "파티", width = 36, align = "CENTER", render = function(r) return r.member.subgroup end },
+        { title = "공대원", width = 120, render = function(r) return BRL.Data.ColorName(r.member.short, r.member.class) end },
+        { title = "준비", width = 76, render = function(r)
+            if not r.ready then return T.Color("muted", "-") end
+            return T.StatusText(r.ready, Ready.STATUS_LABEL[r.ready])
+        end },
+        { title = "사망", width = 40, align = "CENTER", render = function(r) return r.dead and T.Color("red", "사망") or "" end },
+        { title = "입장", width = 50, align = "CENTER", render = function(r) return r.inInstance and T.Color("green", "O") or T.Color("red", "미입장") end },
+        { title = "내구도", width = 56, align = "CENTER", render = function(r)
+            if not r.durability then return T.Color("muted", "?") end
+            return T.Color(r.lowDurability and "red" or "green", r.durability .. "%")
+        end },
+    }
+    for _, item in ipairs(BRL.Data.ReadyManualItems) do
+        cols[#cols + 1] = { title = item.name, width = 0, align = "CENTER", render = function(r)
+            return r.manual[item.key] and T.Color("green", "✔") or T.Color("muted", "·")
+        end }
+    end
+    page.list = W.List(page, {
+        columns = cols,
+        onDoubleClick = function(r) page.manualCheck(r) end,
+        tooltip = function(r) return r.member.short, { "더블클릭: 수동 점검 항목 체크", "내구도는 애드온 설치 공대원의 보고 또는 본인 장비 기준" } end,
+    })
+    page.list:SetPoint("TOPLEFT", 4, -52)
+    page.list:SetPoint("BOTTOMRIGHT", -4, 70)
+    page.note = W.Paragraph(page, "", 880, 11)
+    page.note:SetPoint("BOTTOMLEFT", 4, 36)
+    T.SetTextColor(page.note, "muted")
+    page.note:SetText("· 마법부여/저항 장비/시약/탄약/물약은 게임 API로 다른 공대원의 상태를 확인할 수 없어 수동 점검 대상입니다. 음식/영약/비약은 [버프 및 야영지]에서 점검합니다.")
+
+    page.manualCheck = function(r)
+        local items = {}
+        for _, item in ipairs(BRL.Data.ReadyManualItems) do
+            items[#items + 1] = { value = item.key, text = (r.manual[item.key] and "|cff5cf272✔|r " or "· ") .. item.name }
+        end
+        D.Select(r.member.short .. " 수동 점검", items, function(key) Ready:SetManual(r.key, key, not r.manual[key]) end,
+            { description = "선택한 항목의 확인 여부를 전환합니다." })
+    end
+
+    local _, f = UI.BottomBar(page)
+    f:Add(W.Button(f.parent, "준비 확인 시작", 110, 24, function() Ready:Start() end, { kind = "primary", perm = "raid.command" }))
+    f:Add(W.Button(f.parent, "결과 채팅 출력", 110, 24, function() BRL.UIActions.SendLines(Ready:OutputLines(), "준비 상태 출력") end))
+    f:Add(W.Button(f.parent, "전원 항목 체크", 110, 24, function()
+        local items = {}
+        for _, item in ipairs(BRL.Data.ReadyManualItems) do items[#items + 1] = { value = item.key, text = item.name } end
+        D.Select("전원 확인 처리할 항목", items, function(key)
+            for _, r in ipairs(Ready:Rows()) do Ready:SetManual(r.key, key, true) end
+        end)
+    end, { perm = "raid.command" }))
+    f:Add(W.Button(f.parent, "수동 점검 초기화", 120, 24, function() D.Confirm("이번 세션의 수동 점검 기록을 초기화할까요?", function() Ready:ResetManual() end) end, { perm = "raid.command" }))
+    f:Add(W.Button(f.parent, "내 상태 보고", 100, 24, function() BRL.Sync:SendReadyReport() end))
+end
+
+local function refresh(page)
+    page.list:SetData(Ready:Rows(), true)
+    local s = Ready:Summary()
+    if s.checked then
+        page.summary:SetText(string.format("준비 완료 %d · 준비 안 됨 %d · 미응답 %d · 대기 %d · 오프라인 %d · 사망 %d · 미입장 %d · 내구도 낮음 %d%s",
+            s.ready, s.notready, s.noresponse, s.waiting, s.offline, s.dead, s.absent, s.lowDurability, s.active and "  (진행 중)" or ""))
+    else
+        page.summary:SetText(string.format("준비 확인 미실시 · 오프라인 %d · 사망 %d · 미입장 %d", s.offline, s.dead, s.absent))
+    end
+    UI:SetPermBanner(page, "raid.command")
+end
+
+UI:RegisterPage("ready", { title = L.MENU_READY, order = 6, build = build, refresh = refresh })

@@ -1,0 +1,510 @@
+-- BIG RAID LEADER - 전리품 경매 화면 (골드 경매 / 낙찰·수금 / 기타 분배 방식)
+local _, BRL = ...
+local T, W, L, U, Money, API = BRL.Theme, BRL.Widgets, BRL.L, BRL.Util, BRL.Money, BRL.API
+local UI, D, A = BRL.UI, BRL.Dialogs, BRL.UIActions
+
+local AU, Bids, P, LD = BRL.Auctions, BRL.Bids, BRL.Payments, BRL.LootDistribution
+
+-- 낙찰 → 거래 선택 연결
+function A.LinkAwardToTrade(aw)
+    local st = P:AwardStatus(aw)
+    if st.outstanding <= 0 then D.Message("미수금이 없습니다.") return end
+    local items = {}
+    local trades = BRL.TradeJournal:Query({})
+    table.sort(trades, function(a, b)
+        local am, bm = a.partnerKey == aw.winnerKey, b.partnerKey == aw.winnerKey
+        if am ~= bm then return am end
+        return (a.at or 0) > (b.at or 0)
+    end)
+    for _, tr in ipairs(trades) do
+        if BRL.TradeJournal:IsCounted(tr) and (tr.purpose == "auction_payment" or tr.purpose == "unclassified") then
+            local avail = P:TradeAvailableIn(tr)
+            if avail > 0 then
+                items[#items + 1] = {
+                    value = tr.id,
+                    text = (tr.partnerKey == aw.winnerKey and "|cff5cf272★|r " or "|cff9e9a8f(대리)|r ") .. (tr.partnerName or "?") .. " " .. U.FormatDateTime(tr.at),
+                    sub = "미연결 " .. Money.Format(avail),
+                }
+            end
+        end
+    end
+    if #items == 0 then D.Message("연결 가능한 완료 거래가 없습니다.\n(거래가 '확인 불가'이면 거래 로그에서 수동 확인 후 연결하세요. 누락된 거래는 수동 기록으로 추가할 수 있습니다.)") return end
+    D.Select("수금 거래 선택 - " .. (aw.winnerName or "?"), items, function(tradeId)
+        A.LinkTradeToAwardDirect(BRL.TradeJournal:Get(tradeId), aw)
+    end, { description = "낙찰 미수금 " .. Money.Format(st.outstanding) .. " · ★ = 낙찰자 본인 거래" })
+end
+
+function A.LinkTradeToAwardDirect(tr, aw)
+    local st = P:AwardStatus(aw)
+    local avail = P:TradeAvailableIn(tr)
+    D.Input("연결 금액", { { key = "amount", label = "연결 금액", type = "money", default = math.min(avail, st.outstanding), required = true } }, function(v)
+        local res, err = P:AllocateAuction(tr.id, aw.id, v.amount)
+        if res then return true end
+        if err == "overpay" then
+            D.Confirm("미수금보다 큰 금액입니다. 초과 입금으로 기록할까요?", function()
+                A.Report(P:AllocateAuction(tr.id, aw.id, v.amount, { allowOverpay = true }))
+            end, { danger = true, title = "초과 입금 경고" })
+            return true
+        end
+        return false, err
+    end)
+end
+
+local function itemText(auc)
+    return (auc.itemLink or auc.itemName or "?") .. ((auc.quantity or 1) > 1 and (" x" .. auc.quantity) or "")
+end
+
+local function build(page)
+    UI:PageHeader(page, L.MENU_AUCTION, "골드 경매 · 낙찰/수금 · 기타 분배")
+    page.panels = {}
+    page.tabs = W.Tabs(page, {
+        { key = "auction", text = "골드 경매", width = 100 },
+        { key = "awards", text = "낙찰·수금", width = 100 },
+        { key = "loot", text = "기타 분배 방식", width = 120 },
+    }, function(key)
+        page.tab = key
+        for k, p in pairs(page.panels) do if k == key then p:Show() else p:Hide() end end
+        UI:RequestRefresh()
+    end)
+    page.tabs:SetPoint("TOPLEFT", 4, -28)
+    page.policy = W.Label(page, "", 11, "yellow", "RIGHT")
+    page.policy:SetPoint("TOPRIGHT", -4, -32)
+    local function panel(key)
+        local p = CreateFrame("Frame", nil, page)
+        p:SetPoint("TOPLEFT", 0, -58)
+        p:SetPoint("BOTTOMRIGHT", 0, 0)
+        page.panels[key] = p
+        return p
+    end
+
+    ---------------------------------------------------------------------
+    -- 골드 경매
+    ---------------------------------------------------------------------
+    local pa = panel("auction")
+    local cur = W.Panel(pa, T.colors.panel2, T.colors.border)
+    cur:SetPoint("TOPLEFT", 4, 0)
+    cur:SetSize(430, 150)
+    pa.cur = cur
+    cur.icon = cur:CreateTexture(nil, "ARTWORK")
+    cur.icon:SetSize(40, 40)
+    cur.icon:SetPoint("TOPLEFT", 10, -10)
+    cur.item = W.Label(cur, "진행 중인 경매 없음", 14, "goldBright")
+    cur.item:SetPoint("TOPLEFT", 58, -12)
+    cur.item:SetPoint("RIGHT", -10, 0)
+    cur.state = W.Label(cur, "", 11, "muted")
+    cur.state:SetPoint("TOPLEFT", 58, -32)
+    cur.high = W.Label(cur, "", 20, "green")
+    cur.high:SetPoint("TOPLEFT", 10, -62)
+    cur.bidder = W.Label(cur, "", 13, "text")
+    cur.bidder:SetPoint("TOPLEFT", 10, -90)
+    cur.nextMin = W.Label(cur, "", 12, "muted")
+    cur.nextMin:SetPoint("TOPLEFT", 10, -112)
+    cur.timer = W.Label(cur, "", 26, "yellow", "RIGHT")
+    cur.timer:SetPoint("BOTTOMRIGHT", -12, 12)
+
+    local ctl = CreateFrame("Frame", nil, pa)
+    ctl:SetPoint("TOPLEFT", 4, -156)
+    ctl:SetSize(430, 56)
+    local fc = W.Flow(ctl, 0, 1, 4)
+    local function active() return AU:GetActive() end
+    local function pending() return AU:GetPendingConfirm((BRL.Session:GetActive() or {}).id)[1] end
+    fc:Add(W.Button(ctl, "다음 경매 시작", 104, 24, function() local ok, err = AU:StartNext() if not ok then BRL:Print(tostring(err)) end end, { kind = "primary", perm = "finance.edit" }))
+    fc:Add(W.Button(ctl, "+10초", 52, 24, function() local a = active() if a then AU:ExtendTime(a.id, 10) end end, { perm = "finance.edit" }))
+    fc:Add(W.Button(ctl, "입찰 마감", 70, 24, function() local a = active() if a then AU:End(a.id, "manual") end end, { perm = "finance.edit" }))
+    fc:Add(W.Button(ctl, "낙찰 확정", 76, 24, function()
+        local a = active() or pending()
+        if not a then return end
+        local bid = Bids:Get(a.highBidId)
+        if not bid then BRL:Print("유효한 입찰이 없습니다.") return end
+        D.Confirm(string.format("%s\n낙찰자: %s\n낙찰 금액: %s\n\n낙찰을 확정할까요? (실제 수금은 거래 연결 후 반영됩니다)", a.itemLink, bid.bidderName, Money.Format(bid.amount)), function()
+            A.Report(AU:ConfirmAward(a.id))
+        end, { title = "낙찰 확정" })
+    end, { kind = "primary", perm = "finance.edit" }))
+    fc:Add(W.Button(ctl, "수동 입찰", 70, 24, function() local a = active() or pending() if a then A.ManualBid(a) end end, { perm = "finance.edit" }))
+    fc:NewLine(28)
+    fc:Add(W.Button(ctl, "다른 입찰로 낙찰", 110, 24, function()
+        local a = active() or pending()
+        if not a then return end
+        local items = {}
+        for _, b in ipairs(Bids:History(a.id)) do
+            if b.accepted and not b.retracted then items[#items + 1] = { value = b.id, text = b.bidderName, sub = Money.Format(b.amount) } end
+        end
+        D.Select("낙찰할 입찰 선택", items, function(bidId)
+            if a.status == "active" then AU:End(a.id, "manual") end
+            A.Report(AU:ConfirmAward(a.id, bidId))
+        end)
+    end, { perm = "finance.edit" }))
+    fc:Add(W.Button(ctl, "입찰 철회", 70, 24, function()
+        local b = pa.bids:GetSelected()
+        if b then D.Reason("입찰 철회", function(r) return Bids:Retract(b.id, r) end) end
+    end, { perm = "finance.edit" }))
+    fc:Add(W.Button(ctl, "유찰", 50, 24, function() local a = active() or pending() if a then AU:MarkUnsold(a.id) end end, { perm = "finance.edit" }))
+    fc:Add(W.Button(ctl, "경매 취소", 70, 24, function()
+        local a = active() or pending()
+        if a then D.Confirm("진행 중인 경매를 취소할까요?", function() AU:Cancel(a.id, "공대장 취소") end, { danger = true }) end
+    end, { perm = "finance.edit" }))
+    fc:Add(W.Button(ctl, "결과 공지", 70, 24, function() A.SendLines(AU:ResultLines((BRL.Session:GetActive() or {}).id), "경매 결과") end))
+
+    local bh = W.Section(pa, "입찰 내역")
+    bh:SetPoint("TOPLEFT", 4, -218)
+    pa.bids = W.List(pa, {
+        columns = {
+            { title = "시각", width = 50, render = function(b) return U.FormatClock(b.at) end },
+            { title = "입찰자", width = 100, render = function(b) return b.bidderName end },
+            { title = "금액", width = 110, align = "RIGHT", render = function(b) return Money.Format(b.amount) end },
+            { title = "결과", width = 0, render = function(b)
+                if b.retracted then return T.Color("muted", "철회") end
+                if b.accepted then return T.Color("green", "유효") .. " |cff9e9a8f" .. (b.source == "chat" and "채팅" or "수동") .. "|r" end
+                return T.Color("red", b.rejectReason or "거부")
+            end },
+        },
+        fontSize = 11,
+    })
+    pa.bids:SetPoint("TOPLEFT", 4, -240)
+    pa.bids:SetPoint("BOTTOMLEFT", 4, 4)
+    pa.bids:SetWidth(430)
+
+    -- 대기열
+    local qh = W.Section(pa, "경매 대기열")
+    qh:SetPoint("TOPLEFT", 446, 0)
+    pa.showAll = W.CheckBox(pa, "종료된 경매 포함", function() UI:RequestRefresh() end)
+    pa.showAll:SetPoint("TOPRIGHT", -110, -2)
+    pa.queue = W.List(pa, {
+        columns = {
+            { title = "#", width = 24, align = "CENTER", render = function(a) return a.status == "queued" and a.order or "" end },
+            { title = "아이템", width = 0, render = itemText },
+            { title = "시작가", width = 76, align = "RIGHT", render = function(a) return Money.Format(a.startPrice, { goldOnly = true }) end },
+            { title = "증가", width = 60, align = "RIGHT", render = function(a) return Money.Format(a.minIncrement, { goldOnly = true }) end },
+            { title = "상태", width = 70, render = function(a) return T.StatusText(a.status, BRL.Label("AUC_", a.status)) end },
+        },
+        onDoubleClick = function(a) if a.status == "queued" then AU:Start(a.id) end end,
+        tooltip = function(a)
+            local lines = { "시작가 " .. Money.Format(a.startPrice), "최소 증가 " .. Money.Format(a.minIncrement), "시간 " .. a.duration .. "초" }
+            if a.buyout and a.buyout > 0 then lines[#lines + 1] = "즉시 낙찰 " .. Money.Format(a.buyout) end
+            if a.relistOf then lines[#lines + 1] = "재경매" end
+            lines[#lines + 1] = "더블클릭: 경매 시작"
+            return a.itemName, lines
+        end,
+    })
+    pa.queue:SetPoint("TOPLEFT", 446, -24)
+    pa.queue:SetPoint("BOTTOMRIGHT", -4, 64)
+    local qb = CreateFrame("Frame", nil, pa)
+    qb:SetPoint("BOTTOMLEFT", 446, 32)
+    qb:SetSize(440, 26)
+    local fq = W.Flow(qb, 0, 1, 4)
+    local function selQ() return pa.queue:GetSelected() end
+    fq:Add(W.Button(qb, "아이템 등록", 84, 24, function() A.AddAuction() end, { kind = "primary", perm = "finance.edit", tooltip = { "Shift+클릭/드래그로 아이템 링크 입력" } }))
+    fq:Add(W.Button(qb, "전리품 창에서", 92, 24, function()
+        local loot = API.GetLootItems()
+        if #loot == 0 then BRL:Print("열린 전리품 창이 없습니다.") return end
+        local items = {}
+        for _, it in ipairs(loot) do items[#items + 1] = { value = it.link, text = it.link, sub = BRL.Data.QualityName(it.quality) } end
+        D.Select("전리품 창 아이템 등록", items, function(link) A.AddAuction(link) end)
+    end, { perm = "finance.edit" }))
+    fq:Add(W.Button(qb, "▲", 28, 24, function() local a = selQ() if a then AU:Move(a.id, -1) end end, { perm = "finance.edit" }))
+    fq:Add(W.Button(qb, "▼", 28, 24, function() local a = selQ() if a then AU:Move(a.id, 1) end end, { perm = "finance.edit" }))
+    fq:Add(W.Button(qb, "시작", 44, 24, function() local a = selQ() if a then A.Report(AU:Start(a.id)) end end, { perm = "finance.edit" }))
+    fq:Add(W.Button(qb, "수정", 44, 24, function()
+        local a = selQ()
+        if not a then return end
+        D.Input("경매 수정", {
+            { key = "startPrice", label = "시작가", type = "money", default = a.startPrice },
+            { key = "minIncrement", label = "최소 증가액", type = "money", default = a.minIncrement },
+            { key = "buyout", label = "즉시 낙찰가", type = "money", default = a.buyout or 0 },
+            { key = "duration", label = "시간(초)", type = "number", default = a.duration },
+        }, function(v) return AU:Update(a.id, v) end)
+    end, { perm = "finance.edit" }))
+    fq:Add(W.Button(qb, "취소", 44, 24, function() local a = selQ() if a then AU:Cancel(a.id, "대기열에서 취소") end end, { perm = "finance.edit" }))
+    fq:Add(W.Button(qb, "재경매", 54, 24, function() local a = selQ() if a then A.Report(AU:Relist(a.id)) end end, { perm = "finance.edit" }))
+    local qb2 = CreateFrame("Frame", nil, pa)
+    qb2:SetPoint("BOTTOMLEFT", 446, 4)
+    qb2:SetSize(440, 26)
+    local fq2 = W.Flow(qb2, 0, 1, 4)
+    pa.quickLink = fq2:Add(W.EditBox(qb2, 260, 24, { placeholder = "여기에 아이템 Shift+클릭/드래그 후 Enter", acceptItems = true, onEnter = function(t)
+        if t and t ~= "" then A.AddAuction(t) end
+        pa.quickLink:SetText("")
+    end }))
+    fq2:Add(W.Button(qb2, "경매 내보내기", 90, 24, function() D.CopyText("경매 기록 CSV", AU:ExportCSV((BRL.Session:GetActive() or {}).id)) end))
+
+    ---------------------------------------------------------------------
+    -- 낙찰·수금
+    ---------------------------------------------------------------------
+    local pw = panel("awards")
+    pw.summary = W.Label(pw, "", 12, "gold")
+    pw.summary:SetPoint("TOPLEFT", 4, 0)
+    pw.list = W.List(pw, {
+        columns = {
+            { title = "아이템", width = 0, render = function(aw) return aw.itemLink or aw.itemName or "?" end },
+            { title = "낙찰자", width = 96, render = function(aw) return BRL.Data.ColorName(aw.winnerName, aw.winnerClass) end },
+            { title = "낙찰액", width = 92, align = "RIGHT", render = function(aw) return Money.Format(aw.amount, { goldOnly = aw.amount % 10000 == 0 }) end },
+            { title = "수금", width = 92, align = "RIGHT", render = function(aw) return Money.Format(P:AwardStatus(aw).collected, { goldOnly = true }) end },
+            { title = "미수금", width = 92, align = "RIGHT", render = function(aw)
+                local st = P:AwardStatus(aw)
+                return st.outstanding > 0 and T.Color("red", Money.Format(st.outstanding, { goldOnly = true })) or T.Color("muted", "0")
+            end },
+            { title = "상태", width = 74, render = function(aw) local st = P:AwardStatus(aw) return T.StatusText(st.status, BRL.Label("AWARD_", st.status)) end },
+            { title = "전달", width = 40, align = "CENTER", render = function(aw) return aw.delivered and T.Color("green", "O") or T.Color("muted", "-") end },
+        },
+        onDoubleClick = function(aw) if aw.status == "active" then A.LinkAwardToTrade(aw) end end,
+        tooltip = function(aw)
+            local lines = { "낙찰 시각: " .. U.FormatDateTime(aw.awardedAt), "경매 ID: " .. tostring(aw.auctionId) }
+            for _, a in ipairs(P:AllocationsForAward(aw.id)) do
+                lines[#lines + 1] = string.format("%s %s (거래 %s)%s", a.kind == "refund" and "환불" or "입금", Money.Format(a.amount), tostring(a.tradeId), a.proxy and " 대리" or "")
+            end
+            if aw.cancelReason then lines[#lines + 1] = "취소 사유: " .. aw.cancelReason end
+            lines[#lines + 1] = "더블클릭: 수금 거래 연결"
+            return aw.itemName, lines
+        end,
+    })
+    pw.list:SetPoint("TOPLEFT", 4, -22)
+    pw.list:SetPoint("BOTTOMRIGHT", -4, 70)
+    pw.showCancelled = W.CheckBox(pw, "취소된 낙찰 포함", function() UI:RequestRefresh() end)
+    pw.showCancelled:SetPoint("TOPRIGHT", -120, -2)
+    local function selAw() return pw.list:GetSelected() end
+    local wb = CreateFrame("Frame", nil, pw)
+    wb:SetPoint("BOTTOMLEFT", 4, 36)
+    wb:SetSize(880, 26)
+    local fw = W.Flow(wb, 0, 1, 4)
+    fw:Add(W.Button(wb, "수금 거래 연결", 104, 24, function() local aw = selAw() if aw then A.LinkAwardToTrade(aw) end end, { kind = "primary", perm = "finance.edit" }))
+    fw:Add(W.Button(wb, "연결 내역/해제", 104, 24, function()
+        local aw = selAw()
+        if not aw then return end
+        local items = {}
+        for _, a in ipairs(P:AllocationsForAward(aw.id)) do
+            items[#items + 1] = { value = a.id, text = (a.kind == "refund" and "환불 " or "입금 ") .. Money.Format(a.amount) .. " · 거래 " .. tostring(a.tradeId), sub = U.FormatDateTime(a.at) }
+        end
+        if #items == 0 then D.Message("연결된 거래가 없습니다.") return end
+        D.Select("연결 해제할 항목 선택", items, function(id)
+            D.Reason("연결 해제", function(r) return P:UnlinkAuction(id, r) end)
+        end, { description = "연결을 해제해도 거래 기록은 보존됩니다." })
+    end, { perm = "finance.edit" }))
+    fw:Add(W.Button(wb, "전달 표시", 70, 24, function() local aw = selAw() if aw then AU:SetDelivered(aw.id, not aw.delivered) end end, { perm = "finance.edit" }))
+    fw:Add(W.Button(wb, "금액 수정", 70, 24, function() local aw = selAw() if aw then A.ChangeAwardAmount(aw) end end, { perm = "finance.edit" }))
+    fw:Add(W.Button(wb, "낙찰 취소", 70, 24, function() local aw = selAw() if aw then A.CancelAward(aw) end end, { kind = "danger", perm = "finance.edit" }))
+    fw:Add(W.Button(wb, "미수금 안내", 84, 24, function()
+        local lines = { "[BIG RAID LEADER 미수금 안내]" }
+        for _, aw in ipairs(AU:Awards((BRL.Session:GetActive() or {}).id)) do
+            local st = P:AwardStatus(aw)
+            if st.outstanding > 0 then lines[#lines + 1] = aw.winnerName .. ": " .. (aw.itemName or "?") .. " 미수 " .. Money.Format(st.outstanding) end
+        end
+        if #lines == 1 then lines[2] = "미수금 없음" end
+        A.SendLines(lines, "미수금 안내")
+    end))
+    fw:Add(W.Button(wb, "결과 공지", 70, 24, function() A.SendLines(AU:ResultLines((BRL.Session:GetActive() or {}).id), "경매 결과") end))
+    pw.note = W.Paragraph(pw, "낙찰 금액은 수금 예정 금액입니다. 실제 수금은 '완료 확인'된 거래를 연결해야 반영됩니다. 자동 매칭은 제안만 하며, 금액이 같아도 자동 확정하지 않습니다.", 880, 11)
+    pw.note:SetPoint("BOTTOMLEFT", 4, 8)
+    T.SetTextColor(pw.note, "muted")
+
+    ---------------------------------------------------------------------
+    -- 기타 분배 방식
+    ---------------------------------------------------------------------
+    local pl = panel("loot")
+    pl.list = W.List(pl, {
+        columns = {
+            { title = "아이템", width = 0, render = function(r) return r.itemLink or r.itemName end },
+            { title = "방식", width = 90, render = function(r) return LD:MethodName(r.method) end },
+            { title = "신청자", width = 50, align = "CENTER", render = function(r) return U.Count(r.candidates) end },
+            { title = "수령자", width = 100, render = function(r) return r.winnerName or (r.suggestedWinner and ("추천 " .. API.ShortName(r.suggestedWinner))) or "-" end },
+            { title = "상태", width = 64, render = function(r) return ({ open = T.Color("yellow", "진행"), awarded = T.Color("green", "분배"), cancelled = T.Color("muted", "취소") })[r.status] end },
+        },
+        onClick = function() UI:RequestRefresh() end,
+    })
+    pl.list:SetPoint("TOPLEFT", 4, 0)
+    pl.list:SetSize(520, 400)
+    pl.cands = W.List(pl, {
+        columns = {
+            { title = "신청자", width = 0, render = function(c) return c.name end },
+            { title = "값", width = 120, align = "RIGHT", render = function(c)
+                local r = pl.list:GetSelected()
+                if not r then return "" end
+                if r.method == "roll" then return c.roll or "-" end
+                if r.method == "dkp" then return (c.bid and ("입찰 " .. c.bid .. " / ") or "") .. "DKP " .. LD:DKP(c.key) end
+                if r.method == "epgp" then local ep, gp, pr = LD:EPGP(c.key) return string.format("PR %.2f (%d/%d)", pr, ep, gp) end
+                if r.method == "council" then return "투표 " .. (c.votes or 0) end
+                return c.note or ""
+            end },
+        },
+    })
+    pl.cands:SetPoint("TOPLEFT", 534, 0)
+    pl.cands:SetSize(350, 400)
+    local function selR() return pl.list:GetSelected() end
+    local lb = CreateFrame("Frame", nil, pl)
+    lb:SetPoint("TOPLEFT", 4, -408)
+    lb:SetSize(880, 60)
+    local fl = W.Flow(lb, 0, 1, 4)
+    fl:Add(W.Button(lb, "아이템 등록", 84, 24, function()
+        local methods = {}
+        for _, m in ipairs(LD.METHODS) do methods[#methods + 1] = { value = m.key, text = m.name } end
+        D.Input("분배 아이템 등록", {
+            { key = "link", label = "아이템", type = "text", required = true, acceptItems = true, placeholder = "Shift+클릭/드래그" },
+            { key = "method", label = "분배 방식", type = "dropdown", items = methods, default = "roll" },
+        }, function(v)
+            local rec, err = LD:Register(v.link, v.method)
+            if rec then return true end
+            if err == "duplicate" or err == "duplicate_auction" then
+                D.Confirm(err == "duplicate" and "이미 분배 등록된 아이템입니다. 동일 아이템이 여러 개인 경우에만 추가 등록하세요." or "같은 아이템이 골드 경매로 낙찰되어 있습니다. 그래도 등록할까요?", function()
+                    A.Report(LD:Register(v.link, v.method, { allowDuplicate = true }))
+                end, { title = "중복 분배 확인" })
+                return true
+            end
+            return false, err
+        end)
+    end, { kind = "primary", perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "신청자 추가", 84, 24, function()
+        local r = selR()
+        if not r then return end
+        D.Input("신청자 추가", {
+            { key = "member", label = "공대원", type = "dropdown", items = A.MemberItems() },
+            { key = "bid", label = "DKP 입찰(선택)", type = "number" },
+            { key = "note", label = "메모", type = "text" },
+        }, function(v)
+            if not v.member then return false, "공대원을 선택하세요" end
+            return LD:AddCandidate(r.id, v.member, { bid = v.bid, note = v.note ~= "" and v.note or nil })
+        end)
+    end, { perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "주사위 시작", 84, 24, function() local r = selR() if r then LD:StartRoll(r.id, 20) end end, { perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "주사위 마감", 84, 24, function() local r = selR() if r then LD:EndRoll(r.id) end end, { perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "투표 +1", 64, 24, function()
+        local r, c = selR(), pl.cands:GetSelected()
+        if r and c then LD:Vote(r.id, c.key, 1) end
+    end, { perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "추천 수령자로 분배", 130, 24, function()
+        local r = selR()
+        if not r then return end
+        local key = LD:Suggest(r.id)
+        if not key then BRL:Print("추천 수령자가 없습니다.") return end
+        D.Input("분배 확정 - " .. API.ShortName(key), { { key = "cost", label = "비용(DKP/GP)", type = "number", default = (r.candidates[key] and r.candidates[key].bid) or 0 } },
+            function(v) return LD:Award(r.id, key, v.cost) end)
+    end, { kind = "primary", perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "선택 신청자로 분배", 130, 24, function()
+        local r, c = selR(), pl.cands:GetSelected()
+        if not r or not c then return end
+        D.Input("분배 확정 - " .. c.name, { { key = "cost", label = "비용(DKP/GP)", type = "number", default = c.bid or 0 } },
+            function(v) return LD:Award(r.id, c.key, v.cost) end)
+    end, { perm = "finance.edit" }))
+    fl:NewLine(28)
+    fl:Add(W.Button(lb, "분배 취소", 70, 24, function() local r = selR() if r then D.Reason("분배 취소", function(x) return LD:Cancel(r.id, x) end) end end, { perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "수령자 변경", 84, 24, function()
+        local r = selR()
+        if not r or r.status ~= "awarded" then return end
+        D.Select("새 수령자", A.MemberItems(), function(key) D.Reason("수령자 변경 사유", function(x) return LD:Modify(r.id, key, x) end) end)
+    end, { perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "DKP 조정", 70, 24, function()
+        D.Input("DKP 조정", {
+            { key = "member", label = "공대원(비우면 전원)", type = "dropdown", items = A.MemberItems(true) },
+            { key = "delta", label = "증감", type = "number", required = true },
+            { key = "reason", label = "사유", type = "text", required = true },
+        }, function(v)
+            if v.member then return LD:AdjustDKP(v.member, v.delta, v.reason) end
+            return LD:AwardRaidDKP(v.delta, v.reason) > 0
+        end)
+    end, { perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "EP 지급", 64, 24, function()
+        D.Input("EP 지급", {
+            { key = "member", label = "공대원(비우면 전원)", type = "dropdown", items = A.MemberItems(true) },
+            { key = "amount", label = "EP", type = "number", required = true },
+            { key = "reason", label = "사유", type = "text" },
+        }, function(v)
+            if v.member then return LD:AddEP(v.member, v.amount, v.reason) end
+            for _, m in ipairs(BRL.Roster:GetMembers()) do LD:AddEP(m.key, v.amount, v.reason) end
+            return true
+        end)
+    end, { perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "EPGP 감쇠", 76, 24, function()
+        D.Input("EPGP 감쇠", { { key = "pct", label = "감쇠율(%)", type = "number", default = 10, required = true } }, function(v) return LD:Decay(v.pct) end)
+    end, { perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "우선순위 설정", 96, 24, function()
+        local r = selR()
+        if not r then return end
+        local itemKey = tostring(U.ItemIdFromLink(r.itemLink) or r.itemName)
+        local cur2 = {}
+        for _, k in ipairs(LD:PriorityList(itemKey)) do cur2[#cur2 + 1] = API.ShortName(k) end
+        D.Input("우선순위 (앞쪽 우선, 쉼표 구분)", { { key = "list", label = "순서", type = "text", default = table.concat(cur2, ", ") } }, function(v)
+            local list = {}
+            for _, n in ipairs(U.Split(v.list, ",")) do
+                local key = API.NormalizeName(U.Trim(n))
+                if key then list[#list + 1] = key end
+            end
+            return LD:SetPriorityList(itemKey, list)
+        end)
+    end, { perm = "finance.edit" }))
+    fl:Add(W.Button(lb, "점수표 보기", 84, 24, function()
+        local lines = { "[DKP]" }
+        for _, e in ipairs(LD:DKPStandings()) do lines[#lines + 1] = API.ShortName(e.key) .. ": " .. e.value end
+        lines[#lines + 1] = ""
+        lines[#lines + 1] = "[EPGP] 이름: EP / GP / PR"
+        for _, e in ipairs(LD:EPGPStandings()) do lines[#lines + 1] = string.format("%s: %d / %d / %.2f", API.ShortName(e.key), e.ep, e.gp, e.pr) end
+        D.CopyText("DKP / EPGP 점수표", table.concat(lines, "\n"))
+    end))
+    page.tabs:Select("auction")
+end
+
+local function tick(page, auc, rem)
+    if page.tab ~= "auction" then return end
+    local cur = page.panels.auction.cur
+    if auc and auc.status == "active" then
+        cur.timer:SetText(string.format("%d초", math.ceil(rem or 0)))
+        T.SetTextColor(cur.timer, (rem or 0) <= 5 and "red" or "yellow")
+    end
+end
+
+local function refresh(page)
+    local session = BRL.Session:GetActive()
+    local sid = session and session.id
+    page.policy:SetText(BRL.acct.auction.policyAcknowledged and "" or "골드 경매 운영 전 지역 정책 확인 필요 (설정 > 정책 안내)")
+    if page.tab == "auction" then
+        local pa = page.panels.auction
+        local cur = pa.cur
+        local a = AU:GetActive() or AU:GetPendingConfirm(sid)[1]
+        if a then
+            cur.icon:SetTexture(a.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            cur.icon:Show()
+            cur.item:SetText(itemText(a))
+            cur.state:SetText(BRL.Label("AUC_", a.status) .. (a.endReason == "interrupted" and " (재접속으로 중단됨 - 확인 후 낙찰/유찰)" or "") ..
+                (a.buyout and a.buyout > 0 and (" · 즉시 낙찰 " .. Money.Format(a.buyout)) or ""))
+            cur.high:SetText(a.highAmount and Money.Format(a.highAmount) or ("시작가 " .. Money.Format(a.startPrice)))
+            cur.bidder:SetText(a.highBidder and ("최고 입찰자: " .. API.ShortName(a.highBidder)) or "입찰 없음")
+            cur.nextMin:SetText("다음 최소 입찰가: " .. Money.Format(AU:NextMinimum(a)) .. " · 최소 증가 " .. Money.Format(a.minIncrement))
+            if a.status == "active" then
+                cur.timer:SetText(string.format("%d초", math.ceil(AU:Remaining(a))))
+            else
+                cur.timer:SetText(T.Color("yellow", "확정 대기"))
+            end
+            pa.bids:SetData(Bids:History(a.id), true)
+        else
+            cur.icon:Hide()
+            cur.item:SetText("진행 중인 경매 없음")
+            cur.state:SetText(session and ("세션: " .. session.name) or "공격대 세션이 없습니다 (아이템 등록 시 자동 생성)")
+            cur.high:SetText("")
+            cur.bidder:SetText("")
+            cur.nextMin:SetText("")
+            cur.timer:SetText("")
+            pa.bids:SetData({})
+        end
+        local filter = pa.showAll:GetChecked() and nil or { queued = true, active = true, ended = true }
+        pa.queue:SetData(sid and AU:List(sid, filter) or {}, true)
+    elseif page.tab == "awards" then
+        local pw = page.panels.awards
+        pw.list:SetData(sid and AU:Awards(sid, pw.showCancelled:GetChecked()) or {}, true)
+        if sid then
+            local sum = BRL.Ledger:Summary(sid)
+            pw.summary:SetText(string.format("낙찰 %d건 · 총 경매액 %s · 실제 수금 %s · 미수금 %s%s%s",
+                sum.awardCount, Money.Format(sum.totalAwarded), Money.Format(sum.collected), Money.Format(sum.outstanding),
+                sum.unallocatedAuctionIncome > 0 and (" · " .. T.Color("yellow", "미연결 수금 " .. Money.Format(sum.unallocatedAuctionIncome))) or "",
+                sum.refundDue > 0 and (" · " .. T.Color("red", "환불 필요 " .. Money.Format(sum.refundDue))) or ""))
+        else
+            pw.summary:SetText("공격대 세션이 없습니다")
+        end
+    else
+        local pl = page.panels.loot
+        pl.list:SetData(LD:List(sid), true)
+        local r = pl.list:GetSelected()
+        local cands = {}
+        if r then for _, c in pairs(r.candidates) do cands[#cands + 1] = c end end
+        table.sort(cands, function(x, y) return x.name < y.name end)
+        pl.cands:SetData(cands, true)
+    end
+    UI:SetPermBanner(page, "finance.edit")
+end
+
+UI:RegisterPage("auction", { title = L.MENU_AUCTION, order = 10, build = build, refresh = refresh, tick = tick })

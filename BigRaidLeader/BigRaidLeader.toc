@@ -5,6 +5,10 @@
 ## Author: bigarms5648
 ## Version: 1.0.0
 ## SavedVariables: BigRaidLeaderDB
+## IconTexture: Interface\Icons\INV_Misc_Coin_02
+## AddonCompartmentFunc: BigRaidLeader_OnAddonCompartmentClick
+## X-Category: Raid
+## X-Website: https://github.com/BIGARMS5648/BIG-RAID-LEADER
 
 Core\Bootstrap.lua
 Core\Localization.lua
@@ -42,4 +46,27 @@ Modules\LootDistribution.lua
 Modules\Statistics.lua
 Modules\Sync.lua
 Modules\Recruitment.lua
+UI\Theme.lua
+UI\Widgets.lua
+UI\Dialogs.lua
+UI\MainFrame.lua
+UI\Minimap.lua
+UI\MarkerBar.lua
+UI\Actions.lua
+UI\TradePopup.lua
+UI\Dashboard.lua
+UI\Pages\Recruit.lua
+UI\Pages\Roster.lua
+UI\Pages\Groups.lua
+UI\Pages\Roles.lua
+UI\Pages\Ready.lua
+UI\Pages\Buffs.lua
+UI\Pages\Command.lua
+UI\Pages\Boss.lua
+UI\Pages\Auction.lua
+UI\Pages\Trades.lua
+UI\Pages\Ledger.lua
+UI\Pages\Settlement.lua
+UI\Pages\Stats.lua
+UI\Pages\Settings.lua
 Core\Init.lua
