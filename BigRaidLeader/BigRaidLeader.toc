@@ -29,4 +29,17 @@ Modules\Payments.lua
 Modules\Ledger.lua
 Modules\Settlement.lua
 Modules\Reports.lua
+Modules\Roles.lua
+Modules\Roster.lua
+Modules\Groups.lua
+Modules\Readiness.lua
+Modules\Buffs.lua
+Modules\Campsites.lua
+Modules\Command.lua
+Modules\BossPlans.lua
+Modules\RaidProgress.lua
+Modules\LootDistribution.lua
+Modules\Statistics.lua
+Modules\Sync.lua
+Modules\Recruitment.lua
 Core\Init.lua

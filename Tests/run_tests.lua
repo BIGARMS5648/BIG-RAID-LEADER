@@ -77,6 +77,10 @@ function T.fresh(opts)
     BRL.ChatOut:Clear()
     BRL.ChatOut.lastSend = -100
     BRL.ChatOut.scheduled = false
+    BRL.Sync.queue, BRL.Sync.partial, BRL.Sync.scheduled, BRL.Sync.lastSend = {}, {}, false, nil
+    BRL.Sync.received = { notices = {}, roles = nil, auction = nil, awards = {}, payout = nil, notes = {} }
+    BRL.Groups.applying = nil
+    BRL.BossPlans.timer = nil
     BRL.Perm.override = opts.role
     return BRL
 end

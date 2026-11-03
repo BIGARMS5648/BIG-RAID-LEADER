@@ -194,20 +194,24 @@ function API.GetNumGroupMembers()
     return 0
 end
 
--- 반환: true/false, 또는 확인 불가 시 nil
+-- 반환: true/false, 또는 확인 불가(오류/Secret Value) 시 nil
+local function boolOrUnknown(f, unit)
+    if not f then return nil end
+    local ok, r = pcall(f, unit)
+    if not ok or API.IsSecret(r) then return nil end
+    return r and true or false
+end
+
 function API.IsLeader(unit)
     unit = unit or "player"
-    local ok, r = safeCall(G.UnitIsGroupLeader, unit)
-    if not ok then return nil end
-    if r == nil and not API.IsInGroup() then return false end
-    return r and true or false
+    if not API.IsInGroup() then return false end
+    return boolOrUnknown(G.UnitIsGroupLeader, unit)
 end
 
 function API.IsAssistant(unit)
     unit = unit or "player"
-    local ok, r = safeCall(G.UnitIsGroupAssistant, unit)
-    if not ok then return nil end
-    return r and true or false
+    if not API.IsInGroup() then return false end
+    return boolOrUnknown(G.UnitIsGroupAssistant, unit)
 end
 
 local CLASS_FROM_LOCAL
