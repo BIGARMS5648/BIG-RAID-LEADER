@@ -1,0 +1,483 @@
+-- BIG RAID LEADER - 골드 경매 (Auction / Award)
+-- 낙찰 금액은 "수금 예정 금액"일 뿐이며 실제 수령 골드로 합산하지 않는다.
+-- 실제 수금은 완료 확인된 거래를 낙찰에 연결(Payments)해야 반영된다.
+local _, BRL = ...
+local U, API, DB, Money, L = BRL.Util, BRL.API, BRL.DB, BRL.Money, BRL.L
+
+local A = BRL:NewModule("Auctions")
+
+A.ticker = nil
+A.lastAnnouncedSecond = nil
+
+local function changed()
+    BRL.Events:Fire(BRL.Events.MSG.AUCTION_CHANGED)
+    BRL.Events:Fire(BRL.Events.MSG.DATA_CHANGED, "auctions")
+end
+
+function A:OnEnable()
+    -- 접속/재시작 시 진행 중이던 경매는 일시정지 상태(ended 대기)로 전환하여 공대장이 판단
+    for _, auc in pairs(DB:T("auctions")) do
+        if auc.status == "active" then
+            auc.status = "ended"
+            auc.endReason = "interrupted"
+            auc.endedAt = U.Now()
+        end
+    end
+end
+
+function A:Get(id) return DB:Get("auctions", id) end
+
+local function sessionFor(auc)
+    return auc and auc.sessionId and BRL.Session:Get(auc.sessionId)
+end
+
+local function requireEdit(auc)
+    local session = auc and sessionFor(auc) or BRL.Session:GetActive()
+    local ok, why = BRL.Perm:CanEditSession(session)
+    if not ok then
+        BRL:Print("%s: %s", L.NO_PERMISSION, why or "")
+        return false, why
+    end
+    return true
+end
+
+function A:List(sessionId, statusFilter)
+    return DB:List("auctions", function(a)
+        if sessionId and a.sessionId ~= sessionId then return false end
+        if statusFilter and not statusFilter[a.status] then return false end
+        return true
+    end, "order")
+end
+
+function A:Queue(sessionId)
+    return self:List(sessionId, { queued = true })
+end
+
+function A:GetActive()
+    for _, a in pairs(DB:T("auctions")) do
+        if a.status == "active" then return a end
+    end
+    return nil
+end
+
+-- 확정 대기 중인 경매
+function A:GetPendingConfirm(sessionId)
+    return self:List(sessionId, { ended = true })
+end
+
+local function nextOrder(sessionId)
+    local max = 0
+    for _, a in pairs(DB:T("auctions")) do
+        if a.sessionId == sessionId and (a.order or 0) > max then max = a.order end
+    end
+    return max + 1
+end
+
+---------------------------------------------------------------------------
+-- 등록
+---------------------------------------------------------------------------
+-- opts: quantity, startPrice, minIncrement, buyout, duration, allowDuplicate, note
+function A:Add(itemLink, opts)
+    opts = opts or {}
+    if type(itemLink) ~= "string" or itemLink == "" then return nil, "아이템 링크가 필요합니다" end
+    local session = BRL.Session:GetActive()
+    if not session or session.status ~= "open" then
+        session = BRL.Session:Create({})
+        if not session then return nil, "공격대 세션을 만들 수 없습니다" end
+    end
+    if not requireEdit({ sessionId = session.id }) then return nil, "권한 없음" end
+    local cfg = BRL.acct.auction
+    local startPrice = opts.startPrice or cfg.startPrice
+    local minInc = opts.minIncrement or cfg.minIncrement
+    local buyout = opts.buyout or 0
+    if not Money.IsValid(startPrice) or not Money.IsValid(minInc) or not Money.IsValid(buyout) then
+        return nil, "금액 오류"
+    end
+    if minInc <= 0 then return nil, "최소 입찰 증가액은 0보다 커야 합니다" end
+    if buyout > 0 and buyout < startPrice then return nil, "즉시 낙찰가는 시작가 이상이어야 합니다" end
+    -- 동일 아이템 중복 등록 확인
+    if not opts.allowDuplicate then
+        for _, a in pairs(DB:T("auctions")) do
+            if a.sessionId == session.id and a.itemLink == itemLink and (a.status == "queued" or a.status == "active" or a.status == "ended") then
+                return nil, "duplicate"
+            end
+        end
+    end
+    local name, _, quality, icon = API.GetItemInfo(itemLink)
+    local auc = DB:Insert("auctions", {
+        sessionId = session.id,
+        itemLink = itemLink,
+        itemName = name or U.ItemNameFromLink(itemLink),
+        itemId = U.ItemIdFromLink(itemLink),
+        quality = quality,
+        icon = icon or API.GetItemIcon(itemLink),
+        quantity = math.max(1, math.floor(tonumber(opts.quantity) or 1)),
+        startPrice = startPrice,
+        minIncrement = minInc,
+        buyout = buyout,
+        duration = math.max(5, math.floor(tonumber(opts.duration) or cfg.defaultDuration)),
+        status = "queued",
+        order = nextOrder(session.id),
+        relistOf = opts.relistOf,
+        note = opts.note,
+    })
+    DB:Audit("auction.add", "auction", auc.id, { item = itemLink, startPrice = startPrice })
+    changed()
+    return auc
+end
+
+function A:Update(id, fields)
+    local auc = self:Get(id)
+    if not auc then return false, "경매 없음" end
+    if not requireEdit(auc) then return false, "권한 없음" end
+    if auc.status ~= "queued" and auc.status ~= "active" then return false, "대기/진행 중인 경매만 수정할 수 있습니다" end
+    for _, k in ipairs({ "startPrice", "minIncrement", "buyout" }) do
+        if fields[k] ~= nil and not Money.IsValid(fields[k]) then return false, "금액 오류" end
+    end
+    if auc.status == "active" and fields.startPrice and auc.highBidId then
+        return false, "입찰이 있는 경매의 시작가는 변경할 수 없습니다"
+    end
+    for k, v in pairs(fields) do
+        if k == "startPrice" or k == "minIncrement" or k == "buyout" or k == "duration" or k == "quantity" or k == "note" then
+            DB:AddHistory(auc, k, auc[k], v)
+            auc[k] = v
+        end
+    end
+    changed()
+    return true
+end
+
+function A:Move(id, delta)
+    local auc = self:Get(id)
+    if not auc or auc.status ~= "queued" then return false end
+    if not requireEdit(auc) then return false end
+    local queue = self:Queue(auc.sessionId)
+    for i, a in ipairs(queue) do
+        if a.id == id then
+            local j = i + delta
+            if j < 1 or j > #queue then return false end
+            local other = queue[j]
+            auc.order, other.order = other.order, auc.order
+            changed()
+            return true
+        end
+    end
+    return false
+end
+
+---------------------------------------------------------------------------
+-- 진행
+---------------------------------------------------------------------------
+function A:Remaining(auc)
+    if not auc or auc.status ~= "active" or not auc.endsClock then return 0 end
+    return math.max(0, auc.endsClock - U.Clock())
+end
+
+function A:NextMinimum(auc)
+    if not auc.highAmount then return auc.startPrice end
+    return auc.highAmount + auc.minIncrement
+end
+
+function A:Start(id)
+    local auc = self:Get(id)
+    if not auc then return false, "경매 없음" end
+    if not requireEdit(auc) then return false, "권한 없음" end
+    if auc.status ~= "queued" then return false, "대기 중인 경매만 시작할 수 있습니다" end
+    local active = self:GetActive()
+    if active then return false, "이미 진행 중인 경매가 있습니다: " .. (active.itemName or "?") end
+    auc.status = "active"
+    auc.startedAt = U.Now()
+    auc.endsClock = U.Clock() + auc.duration
+    auc.highBidId, auc.highAmount, auc.highBidder = nil, nil, nil
+    self.lastAnnouncedSecond = nil
+    DB:Audit("auction.start", "auction", auc.id)
+    local parts = { string.format("[경매 시작] %s", auc.itemLink) }
+    if auc.quantity > 1 then parts[#parts + 1] = "x" .. auc.quantity end
+    parts[#parts + 1] = "시작가 " .. Money.Format(auc.startPrice)
+    parts[#parts + 1] = "최소 증가 " .. Money.Format(auc.minIncrement)
+    if auc.buyout and auc.buyout > 0 then parts[#parts + 1] = "즉시 낙찰 " .. Money.Format(auc.buyout) end
+    parts[#parts + 1] = auc.duration .. "초"
+    BRL.ChatOut:Announce(table.concat(parts, " / "))
+    if BRL.acct.auction.chatBids then
+        BRL.ChatOut:Send("입찰은 공격대 채팅" .. (BRL.acct.auction.bidChannels.WHISPER and " 또는 귓속말" or "") .. "로 금액만 입력하세요 (예: 1500)")
+    end
+    self:StartTicker()
+    if BRL.Sync then BRL.Sync:BroadcastAuction(auc) end
+    changed()
+    return true
+end
+
+function A:StartNext(sessionId)
+    local q = self:Queue(sessionId or (BRL.Session:GetActive() or {}).id)
+    if #q == 0 then return false, "대기 중인 경매가 없습니다" end
+    return self:Start(q[1].id)
+end
+
+function A:StartTicker()
+    if self.ticker then return end
+    self.ticker = API.NewTicker(0.25, function() self:Tick() end)
+end
+
+function A:StopTicker()
+    if self.ticker and self.ticker.Cancel then self.ticker:Cancel() end
+    self.ticker = nil
+end
+
+function A:Tick()
+    local auc = self:GetActive()
+    if not auc then self:StopTicker() return end
+    local rem = self:Remaining(auc)
+    local sec = math.ceil(rem)
+    local cfg = BRL.acct.auction
+    if cfg.countdownAnnounce and sec <= (cfg.countdownFrom or 5) and sec > 0 and sec ~= self.lastAnnouncedSecond then
+        self.lastAnnouncedSecond = sec
+        BRL.ChatOut:Send(string.format("%s %d...", auc.itemLink, sec))
+    end
+    BRL.Events:Fire(BRL.Events.MSG.AUCTION_TICK, auc, rem)
+    if rem <= 0 then self:End(auc.id, "timer") end
+end
+
+function A:ExtendTime(id, seconds)
+    local auc = self:Get(id)
+    if not auc or auc.status ~= "active" then return false end
+    if not requireEdit(auc) then return false end
+    auc.endsClock = math.max(auc.endsClock, U.Clock()) + seconds
+    self.lastAnnouncedSecond = nil
+    BRL.ChatOut:Send(string.format("%s 경매 시간 %d초 연장", auc.itemLink, seconds))
+    changed()
+    return true
+end
+
+-- 입찰 반영 (Bids 모듈에서 호출)
+function A:ApplyBid(auc, bid)
+    auc.highBidId = bid.id
+    auc.highAmount = bid.amount
+    auc.highBidder = bid.bidderKey
+    local cfg = BRL.acct.auction
+    local rem = self:Remaining(auc)
+    if cfg.antiSnipeSeconds and cfg.antiSnipeSeconds > 0 and rem < cfg.antiSnipeSeconds then
+        auc.endsClock = U.Clock() + cfg.antiSnipeSeconds
+        self.lastAnnouncedSecond = nil
+    end
+    if cfg.announceBids then
+        BRL.ChatOut:Send(string.format("최고 입찰: %s %s (다음 최소 %s)", bid.bidderName or "?",
+            Money.Format(bid.amount), Money.Format(self:NextMinimum(auc))))
+    end
+    if BRL.Sync then BRL.Sync:BroadcastAuction(auc) end
+    if auc.buyout and auc.buyout > 0 and bid.amount >= auc.buyout then
+        self:End(auc.id, "buyout")
+    end
+    changed()
+end
+
+-- 입찰 취소 등으로 최고가 재계산
+function A:RecalculateHigh(auc)
+    local best
+    for _, b in ipairs(BRL.Bids:ForAuction(auc.id)) do
+        if b.accepted and not b.retracted then
+            if not best or b.amount > best.amount or (b.amount == best.amount and b.at < best.at) then best = b end
+        end
+    end
+    auc.highBidId = best and best.id or nil
+    auc.highAmount = best and best.amount or nil
+    auc.highBidder = best and best.bidderKey or nil
+    changed()
+end
+
+function A:End(id, reason)
+    local auc = self:Get(id)
+    if not auc or auc.status ~= "active" then return false end
+    auc.status = "ended"
+    auc.endReason = reason or "manual"
+    auc.endedAt = U.Now()
+    auc.endsClock = nil
+    DB:Audit("auction.end", "auction", auc.id, { reason = auc.endReason, high = auc.highAmount, bidder = auc.highBidder })
+    if not self:GetActive() then self:StopTicker() end
+    if not auc.highBidId then
+        self:MarkUnsold(id, true)
+        return true
+    end
+    BRL.ChatOut:Send(string.format("[입찰 마감] %s 최고 입찰 %s %s - 공대장 확인 후 낙찰 확정",
+        auc.itemLink, API.ShortName(auc.highBidder), Money.Format(auc.highAmount)))
+    if BRL.acct.auction.autoConfirmAward then self:ConfirmAward(id) end
+    changed()
+    return true
+end
+
+-- 낙찰 확정. bidId 생략 시 최고 입찰.
+function A:ConfirmAward(id, bidId)
+    local auc = self:Get(id)
+    if not auc then return nil, "경매 없음" end
+    if not requireEdit(auc) then return nil, "권한 없음" end
+    if auc.status == "active" then self:End(id, "manual") end
+    if auc.status ~= "ended" then return nil, "종료된 경매만 낙찰 확정할 수 있습니다" end
+    local bid = BRL.Bids:Get(bidId or auc.highBidId)
+    if not bid or bid.auctionId ~= auc.id or not bid.accepted or bid.retracted then return nil, "유효한 입찰이 없습니다" end
+    local class
+    for _, m in ipairs(API.GetGroupRoster()) do if m.key == bid.bidderKey then class = m.class end end
+    local award = DB:Insert("awards", {
+        auctionId = auc.id,
+        sessionId = auc.sessionId,
+        winnerKey = bid.bidderKey,
+        winnerName = API.ShortName(bid.bidderKey),
+        winnerClass = class,
+        amount = bid.amount,
+        bidId = bid.id,
+        itemLink = auc.itemLink,
+        itemName = auc.itemName,
+        quantity = auc.quantity,
+        awardedAt = U.Now(),
+        status = "active",
+        delivered = false,
+    })
+    auc.status = "awarded"
+    auc.awardId = award.id
+    DB:Audit("award.create", "award", award.id, { auction = auc.id, winner = award.winnerKey, amount = award.amount })
+    BRL.ChatOut:Announce(string.format("[낙찰] %s → %s %s", auc.itemLink, award.winnerName, Money.Format(award.amount)))
+    if BRL.Sync then BRL.Sync:BroadcastAward(award) end
+    changed()
+    BRL.Events:Fire(BRL.Events.MSG.LEDGER_CHANGED)
+    return award
+end
+
+function A:MarkUnsold(id, silentPerm)
+    local auc = self:Get(id)
+    if not auc then return false end
+    if not silentPerm and not requireEdit(auc) then return false end
+    if auc.status ~= "ended" and auc.status ~= "active" and auc.status ~= "queued" then return false end
+    if auc.status == "active" then auc.endsClock = nil end
+    auc.status = "unsold"
+    auc.endedAt = auc.endedAt or U.Now()
+    DB:Audit("auction.unsold", "auction", auc.id)
+    BRL.ChatOut:Send(string.format("[유찰] %s", auc.itemLink))
+    if not self:GetActive() then self:StopTicker() end
+    changed()
+    return true
+end
+
+function A:Cancel(id, reason)
+    local auc = self:Get(id)
+    if not auc then return false end
+    if not requireEdit(auc) then return false end
+    if auc.status == "awarded" or auc.status == "cancelled" or auc.status == "unsold" then
+        return false, "이미 종료된 경매입니다 (낙찰 취소는 낙찰 목록에서 하세요)"
+    end
+    local wasActive = auc.status == "active"
+    auc.status = "cancelled"
+    auc.cancelReason = reason
+    auc.endsClock = nil
+    DB:Audit("auction.cancel", "auction", auc.id, { reason = reason })
+    if wasActive then BRL.ChatOut:Send(string.format("[경매 취소] %s", auc.itemLink)) end
+    if not self:GetActive() then self:StopTicker() end
+    changed()
+    return true
+end
+
+-- 재경매: 동일 아이템으로 새 경매를 대기열에 추가
+function A:Relist(id)
+    local auc = self:Get(id)
+    if not auc then return nil end
+    local ok = auc.status == "unsold" or auc.status == "cancelled"
+    if auc.status == "awarded" then
+        local aw = DB:Get("awards", auc.awardId)
+        ok = aw and aw.status == "cancelled"
+    end
+    if not ok then return nil, "유찰/취소/낙찰 취소된 경매만 재경매할 수 있습니다" end
+    return self:Add(auc.itemLink, {
+        quantity = auc.quantity, startPrice = auc.startPrice, minIncrement = auc.minIncrement,
+        buyout = auc.buyout, duration = auc.duration, relistOf = auc.id, allowDuplicate = true,
+    })
+end
+
+---------------------------------------------------------------------------
+-- 낙찰 관리
+---------------------------------------------------------------------------
+function A:GetAward(id) return DB:Get("awards", id) end
+
+function A:Awards(sessionId, includeCancelled)
+    return DB:List("awards", function(a)
+        if sessionId and a.sessionId ~= sessionId then return false end
+        if not includeCancelled and a.status == "cancelled" then return false end
+        return true
+    end, "awardedAt")
+end
+
+function A:AwardsForPlayer(key, sessionId)
+    return DB:List("awards", function(a)
+        return a.winnerKey == key and a.status == "active" and (not sessionId or a.sessionId == sessionId)
+    end, "awardedAt")
+end
+
+-- 낙찰 취소. 이미 수금한 금액은 환불 필요로 표시된다.
+function A:CancelAward(awardId, reason)
+    local aw = self:GetAward(awardId)
+    if not aw then return false, "낙찰 없음" end
+    if not requireEdit(aw) then return false, "권한 없음" end
+    if aw.status ~= "active" then return false, "이미 취소된 낙찰입니다" end
+    reason = U.Trim(reason or "")
+    if reason == "" then return false, "취소 사유를 입력하세요" end
+    aw.status = "cancelled"
+    aw.cancelReason = reason
+    aw.cancelledAt = U.Now()
+    DB:AddHistory(aw, "status", "active", "cancelled", reason)
+    DB:Audit("award.cancel", "award", aw.id, { reason = reason })
+    BRL.Events:Fire(BRL.Events.MSG.LEDGER_CHANGED)
+    changed()
+    return true
+end
+
+function A:ChangeAwardAmount(awardId, amount, reason)
+    local aw = self:GetAward(awardId)
+    if not aw then return false, "낙찰 없음" end
+    if not requireEdit(aw) then return false, "권한 없음" end
+    if not Money.IsValid(amount) or amount <= 0 then return false, "금액 오류" end
+    reason = U.Trim(reason or "")
+    if reason == "" then return false, "수정 사유를 입력하세요" end
+    DB:AddHistory(aw, "amount", aw.amount, amount, reason)
+    DB:Audit("award.amount", "award", aw.id, { old = aw.amount, new = amount, reason = reason })
+    aw.amount = amount
+    BRL.Events:Fire(BRL.Events.MSG.LEDGER_CHANGED)
+    changed()
+    return true
+end
+
+function A:SetDelivered(awardId, delivered)
+    local aw = self:GetAward(awardId)
+    if not aw then return false end
+    if not requireEdit(aw) then return false end
+    DB:AddHistory(aw, "delivered", aw.delivered, delivered)
+    aw.delivered = delivered and true or false
+    aw.deliveredAt = delivered and U.Now() or nil
+    changed()
+    return true
+end
+
+-- 결과 공지 문구
+function A:ResultLines(sessionId)
+    local lines = { "[BIG RAID LEADER 경매 결과]" }
+    local total = 0
+    for _, aw in ipairs(self:Awards(sessionId)) do
+        local st = BRL.Payments:AwardStatus(aw)
+        lines[#lines + 1] = string.format("%s → %s %s (%s)", aw.itemLink or aw.itemName, aw.winnerName,
+            Money.Format(aw.amount), BRL.Label("AWARD_", st.status))
+        total = total + aw.amount
+    end
+    lines[#lines + 1] = "총 낙찰액: " .. Money.Format(total)
+    return lines
+end
+
+function A:ExportCSV(sessionId)
+    local csv = BRL.TradeJournal.CSV
+    local lines = { "경매ID,아이템,수량,상태,시작가,최고입찰,낙찰자,낙찰금액,수금액,미수금,아이템전달,낙찰시각" }
+    for _, auc in ipairs(self:List(sessionId)) do
+        local aw = auc.awardId and DB:Get("awards", auc.awardId)
+        local st = aw and BRL.Payments:AwardStatus(aw)
+        lines[#lines + 1] = table.concat({
+            csv(auc.id), csv(auc.itemName), csv(auc.quantity), csv(BRL.Label("AUC_", auc.status)), csv(auc.startPrice),
+            csv(auc.highAmount or ""), csv(aw and aw.winnerKey or ""), csv(aw and aw.amount or ""),
+            csv(st and st.collected or ""), csv(st and st.outstanding or ""), csv(aw and (aw.delivered and "Y" or "N") or ""),
+            csv(aw and U.FormatDateTime(aw.awardedAt) or ""),
+        }, ",")
+    end
+    return table.concat(lines, "\n")
+end

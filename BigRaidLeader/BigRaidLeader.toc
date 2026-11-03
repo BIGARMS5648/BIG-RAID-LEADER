@@ -1,0 +1,32 @@
+## Interface: 16001
+## Title: |cffd4af37BIG RAID LEADER|r
+## Notes: Raid leader suite for WoW: Forever - gold auction, trade log, ledger, settlement, raid ops
+## Notes-koKR: 포에버 공격대장 통합 애드온 - 골드 경매, 거래 자동 기록, 골드 장부, 정산, 공격대 운영
+## Author: bigarms5648
+## Version: 1.0.0
+## SavedVariables: BigRaidLeaderDB
+
+Core\Bootstrap.lua
+Core\Localization.lua
+Core\APICompat.lua
+Core\Events.lua
+Core\Database.lua
+Core\Serializer.lua
+Core\Migration.lua
+Core\Permissions.lua
+Data\Classes.lua
+Data\Raids.lua
+Data\Bosses.lua
+Data\Buffs.lua
+Data\Items.lua
+Modules\ChatOut.lua
+Modules\Session.lua
+Modules\TradeTracker.lua
+Modules\TradeJournal.lua
+Modules\Auctions.lua
+Modules\Bids.lua
+Modules\Payments.lua
+Modules\Ledger.lua
+Modules\Settlement.lua
+Modules\Reports.lua
+Core\Init.lua

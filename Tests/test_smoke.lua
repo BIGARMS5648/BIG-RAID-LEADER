@@ -1,0 +1,5 @@
+T.test("부팅", function()
+  local BRL = T.fresh()
+  T.ok(BRL.db, "db")
+  T.eq(BRL.playerKey, "공대장-아즈샤라", "player key")
+end)
