@@ -47,9 +47,16 @@ local function build(page)
             s:SetScript("OnDragStart", function(self)
                 if self.key then page.dragKey = self.key page.selectedKey = self.key page.Render() end
             end)
-            s:SetScript("OnReceiveDrag", function(self) page.onDrop(self) end)
-            s:SetScript("OnMouseUp", function(self)
-                if page.dragKey and page.dragKey ~= self.key then page.onDrop(self) end
+            -- WoW 는 마우스를 뗀 이벤트를 드래그를 시작한 프레임으로 보내므로, 커서 아래 슬롯을 찾아 놓는다
+            s:SetScript("OnDragStop", function()
+                if not page.dragKey then return end
+                for gg = 1, 8 do
+                    for _, target in ipairs(page.boxes[gg].slots) do
+                        if target:IsMouseOver() then page.onDrop(target) return end
+                    end
+                end
+                page.dragKey = nil
+                page.Render()
             end)
             box.slots[i] = s
         end

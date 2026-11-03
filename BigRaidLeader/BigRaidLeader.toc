@@ -1,5 +1,6 @@
 ## Interface: 16001
 ## Title: |cffd4af37BIG RAID LEADER|r
+## Title-koKR: |cffd4af37BIG RAID LEADER|r (빅 레이드 리더)
 ## Notes: Raid leader suite for WoW: Forever - gold auction, trade log, ledger, settlement, raid ops
 ## Notes-koKR: 포에버 공격대장 통합 애드온 - 골드 경매, 거래 자동 기록, 골드 장부, 정산, 공격대 운영
 ## Author: bigarms5648
