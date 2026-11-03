@@ -71,7 +71,7 @@
 | `C_PartyInfo.DoCountdown(sec)` | 공식 풀링 카운트다운 / 0=취소 | 지원(전투 중 불가) | 채팅 카운트다운 |
 | `ENCOUNTER_START`, `ENCOUNTER_END` | 보스 시도/처치/전멸 자동 기록, 미확인 보스 이름 갱신 | 지원 | 수동 기록 |
 | `GetInventoryItemDurability` | 내 내구도 | 지원 | — |
-| `C_UnitAuras.GetAuraDataByIndex` | 버프 점검 (전투 밖에서만) | 지원 | `UnitBuff`, Secret → 확인 불가 |
+| `C_UnitAuras.GetAuraDataByIndex` | 버프 점검 / **전투 준비 도핑 점검**(음식·영약·비약, 주문 ID + 이름 키워드, 전투 밖에서만) | 지원 | `UnitBuff`, Secret → 확인 불가 |
 | `GetRealZoneText`, `GetInstanceInfo` | 인스턴스 미입장 판단, 공격대 추정 | 지원 | — |
 
 ### 3.3 채팅 / 통신
@@ -135,6 +135,10 @@
 10. `C_PartyInfo.DoCountdown` 사용 가능 여부
 11. `ENCOUNTER_START/END` 의 encounterID/이름 제공 여부 (보스 이름 자동 갱신)
 12. `RANDOM_ROLL_RESULT` 한국어 문자열 형식
+13. 도핑 버프(음식/영약/비약)의 실제 이름과 주문 ID (전투 준비 점검은 오리지널 ID + 한국어/영어 키워드 사용)
+
+> 구성 분석·추천 직업(1.1.0)은 게임 API 를 추가로 사용하지 않고, 공대원 직업(`GetRaidRosterInfo`)과 애드온에서 지정한 역할만으로 계산합니다.
+> 시너지 데이터(`Data/Synergy.lua`)는 오리지널 기준이라 포에버의 직업 변경 사항은 목표 구성/사용 불가 직업 설정으로 보정합니다.
 
 ## 5. 출처
 

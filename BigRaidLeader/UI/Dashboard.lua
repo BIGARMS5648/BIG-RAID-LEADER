@@ -46,7 +46,7 @@ local function build(page)
     flow:Add(W.Button(page, "준비 확인", 96, 26, function() BRL.Command:ReadyCheck() end, { perm = "raid.command" }))
     flow:Add(W.Button(page, "풀링 " .. BRL.acct.command.pullSeconds .. "초", 96, 26, function() BRL.Command:Pull(BRL.acct.command.pullSeconds) end, { perm = "raid.command" }))
     flow:Add(W.Button(page, "풀링 취소", 86, 26, function() BRL.Command:CancelPull() end, { perm = "raid.command" }))
-    flow:Add(W.Button(page, "버프 점검", 86, 26, function() BRL.Buffs:Scan() UI:Open("buffs") end))
+    flow:Add(W.Button(page, "전투 준비", 86, 26, function() BRL.CombatPrep:Run() end, { kind = "primary", tooltip = { "버프를 다시 읽어 음식/영약/비약/필수 버프가 없는 공대원을 알려줍니다." } }))
     flow:Add(W.Button(page, "다음 경매 시작", 110, 26, function()
         local ok, err = BRL.Auctions:StartNext()
         if not ok then BRL:Print(tostring(err)) end
@@ -128,6 +128,21 @@ local function refresh(page)
     for g = 1, 8 do if (counts.byGroup[g] or 0) > 0 then gparts[#gparts + 1] = counts.byGroup[g] end end
     setTile(page, "groups", #gparts > 0 and table.concat(gparts, " · ") or "-")
     if BRL.Buffs.needsRecheck then warnings[#warnings + 1] = "전멸 후 재도핑 점검이 필요합니다 (버프 및 야영지)." end
+    -- 구성 분석: 없는 핵심 시너지 + 추천 직업
+    local comp = BRL.Composition:Analyze(BRL.Roster:TargetSize())
+    local core = {}
+    for _, it in ipairs(comp.eval.items) do
+        if it.syn.weight >= 3 and (it.status == "missing" or it.status == "partial") then core[#core + 1] = (it.syn.name:gsub("%s*%(.*%)", "")) end
+    end
+    if #core > 0 then
+        local recs = {}
+        for i, r in ipairs(comp.recommendations) do if i <= 3 then recs[#recs + 1] = BRL.Data.ClassName(r.class) end end
+        warnings[#warnings + 1] = "부족한 핵심 시너지: " .. table.concat(core, ", ") .. (#recs > 0 and (" → 추천 직업: " .. table.concat(recs, ", ")) or "")
+    end
+    local prep = BRL.CombatPrep.last
+    if prep and (#prep.noFood + #prep.noMain) > 0 then
+        warnings[#warnings + 1] = string.format("도핑 누락 (%s): 음식 %d명, %s %d명", BRL.Util.FormatClock(prep.at), #prep.noFood, BRL.CombatPrep:MainLabel(), #prep.noMain)
+    end
     if not BRL.acct.auction.policyAcknowledged then
         warnings[#warnings + 1] = "골드 경매 운영 전 지역별 정책을 확인하세요 (설정 > 정책 안내)."
     end

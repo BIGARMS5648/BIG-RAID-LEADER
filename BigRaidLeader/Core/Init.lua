@@ -41,6 +41,7 @@ local HELP = {
     "/brl 경매 [아이템링크] [시작가] - 경매 등록",
     "/brl 입찰 <이름> <금액> - 진행 중 경매에 수동 입찰",
     "/brl 준비 - 준비 확인 / /brl 풀 [초] - 풀링 카운트다운",
+    "/brl 전투준비 - 도핑(음식/영약/비약) 점검 / /brl 구성 [20|40] - 구성 분석·추천 직업",
     "/brl 세션 [이름] - 새 공격대 세션",
     "/brl 백업 - 데이터 백업 / /brl 검사 - 데이터 무결성 검사",
     "/brl 호환성 - API 지원 여부 확인",
@@ -74,6 +75,14 @@ function Init:Slash(msg)
     local lower = cmd:lower()
     if lower == "help" or cmd == "도움말" or cmd == "?" then
         for _, l in ipairs(HELP) do BRL:Print(l) end
+        return
+    end
+    if cmd == "전투준비" or cmd == "도핑" or lower == "prep" then
+        BRL.CombatPrep:Run()
+        return
+    end
+    if cmd == "구성" or lower == "comp" then
+        for _, l in ipairs(BRL.Composition:Lines(BRL.Composition:Analyze(tonumber(rest)))) do BRL:Print(l) end
         return
     end
     if cmd == "준비" and rest == "" then
@@ -158,6 +167,7 @@ _G.BINDING_NAME_BRL_READYCHECK = "준비 확인"
 _G.BINDING_NAME_BRL_PULL = "풀링 카운트다운"
 _G.BINDING_NAME_BRL_CANCELPULL = "풀링 취소"
 _G.BINDING_NAME_BRL_AUCTION = "경매 화면 열기"
+_G.BINDING_NAME_BRL_COMBATPREP = "전투 준비 (도핑 점검)"
 
 function _G.BigRaidLeader_Binding(action)
     if action == "READY" then
@@ -166,6 +176,8 @@ function _G.BigRaidLeader_Binding(action)
         if BRL.Perm:Require("raid.command") then BRL.Command:Pull(BRL.acct.command.pullSeconds) end
     elseif action == "CANCELPULL" then
         if BRL.Perm:Require("raid.command") then BRL.Command:CancelPull() end
+    elseif action == "PREP" then
+        BRL.CombatPrep:Run()
     elseif action == "AUCTION" then
         if BRL.UI then BRL.UI:Open("auction") end
     end

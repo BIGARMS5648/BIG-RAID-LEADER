@@ -8,7 +8,7 @@ local Rec = BRL:NewModule("Recruitment")
 local function store() return BRL.db.raidOps.recruitment end
 local function changed() BRL.Events:Fire(BRL.Events.MSG.DATA_CHANGED, "recruit") end
 
-Rec.DEFAULT_MESSAGE = "[모집] {raid} {size}인 ({have}/{size}) 구함: {need} / 귓속말 주세요"
+Rec.DEFAULT_MESSAGE = "[모집] {raid} {size}인 ({have}/{size}) 구함: {need} / 우대: {recommend} / 귓속말 주세요"
 
 function Rec:OnEnable()
     BRL.Events:Register("CHAT_MSG_WHISPER", self, "OnWhisper")
@@ -128,6 +128,7 @@ function Rec:BuildMessage()
     local repl = {
         raid = raid and raid.name or "공격대", size = tostring(cur.size), have = tostring(p.have),
         need = self:NeedText(), roles = table.concat(roles, " "), note = cur.note or "",
+        recommend = msg:find("{recommend}", 1, true) and BRL.Composition:ShortRecommendation(3) or "",
     }
     msg = msg:gsub("{(%w+)}", function(k) return repl[k] or ("{" .. k .. "}") end)
     return U.SanitizeChat(msg)

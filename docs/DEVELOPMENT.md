@@ -17,13 +17,13 @@ BigRaidLeader/              ← 게임에 설치하는 애드온 폴더
     Migration.lua           스키마 마이그레이션, 무결성 검증, 백업/복구
     Permissions.lua         권한(공대장/부공대장/공대원/개인/확인 불가)
     Init.lua                ADDON_LOADED/PLAYER_LOGIN 초기화, /brl 명령 (TOC 마지막)
-  Data/                     Classes, Raids, Bosses, Buffs(야영지 포함), Items
+  Data/                     Classes, Raids, Bosses, Buffs(야영지·도핑 포함), Items, Synergy(구성 시너지·목표 구성)
   Modules/                  비즈니스 로직 (UI 비의존)
     ChatOut  Session  TradeTracker  TradeJournal  Auctions  Bids  Payments  Ledger  Settlement  Reports
     Roles  Roster  Groups  Readiness  Buffs  Campsites  Command  BossPlans  RaidProgress
-    LootDistribution  Statistics  Sync  Recruitment
+    LootDistribution  Statistics  Sync  Recruitment  Composition(구성 분석·추천)  CombatPrep(전투 준비 도핑 점검)
   UI/
-    Theme  Widgets  Dialogs  MainFrame  Minimap  MarkerBar  Actions  TradePopup  Dashboard
+    Theme  Widgets  Dialogs  MainFrame  Minimap  MarkerBar  Actions  TradePopup  PrepReport  Dashboard
     Pages/  Recruit Roster Groups Roles Ready Buffs Command Boss Auction Trades Ledger Settlement Stats Settings
 Tests/                      자동 테스트 (배포 제외)
   mock_wow.lua              WoW API 모의 환경
@@ -98,6 +98,16 @@ TRADE_CLOSED ─▶ 판정 대기(pending) ──┬─ 취소 신호 ───�
 (재접속 시 activeTrade 남아 있음) ─────────────────────────────────▶ 확인 불가(interrupted)
 ```
 최종 내용은 실제 골드 변화와 일치하는 스냅샷(acceptSnap → live → lastNonEmpty 순)을 사용합니다.
+
+## 5b. 구성 분석 알고리즘 (`Modules/Composition.lua`)
+
+- 공대원(+선택한 지원자)을 **직업×역할 집계**로 바꾼 뒤 시너지마다 `제공자 수 / 필요 수`를 계산합니다.
+  - 공격대 버프·보스 약화·생존기·유틸리티: 규모별 고정 필요 수 (`need[10|20|40]`, 야영지 준비 시 `campReduce` 만큼 감소)
+  - 파티 버프: `필요 = min(파티 수, ceil(수혜 인원 / 4))`, 같은 제공자를 나눠 쓰는 항목(`shareGroup`, 주술사 질풍/마나샘)은 중요도 순으로 배정
+- 점수 = Σ 중요도 × 확보율 + 역할 목표 점수(탱커·힐러 가중) + 목표 직업 구성 점수
+- 추천 = 직업별로 가능한 역할 중 점수 증가가 가장 큰 역할을 골라 증가량 순 정렬, 확보가 좋아지는 시너지를 이유로 표시
+- 남은 자리 계획 = 추천 1순위를 하나씩 추가하는 탐욕적 반복 (빠른 경로 `Score` 사용, 40인 39자리 ≈ 35ms)
+- 같은 입력(공대원 직업·역할·파티, 설정, 야영지 상태)이면 결과를 캐시합니다.
 
 ## 6. 테스트
 

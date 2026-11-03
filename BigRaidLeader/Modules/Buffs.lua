@@ -70,16 +70,22 @@ function Buffs:Analyze(auras)
             end
         end
     end
+    -- 도핑: 그룹별 개수(비약은 여러 종류 중첩 가능)와 가장 빨리 끝나는 남은 시간
     for _, g in ipairs(BRL.Data.ConsumableGroups) do
         if not g.manual then
             local kws = self:Keywords(g.key, g.keywords)
+            local ids = idSet(g.spellIds)
+            local entry
             for _, a in ipairs(auras) do
-                if matchesKeywords(a.name, kws) then
+                if (a.spellId and ids[a.spellId]) or matchesKeywords(a.name, kws) then
                     local remaining = a.expirationTime and a.expirationTime > 0 and (a.expirationTime - now) or nil
-                    res.consumables[g.key] = { present = true, remaining = remaining }
-                    break
+                    entry = entry or { present = true, count = 0, names = {} }
+                    entry.count = entry.count + 1
+                    entry.names[#entry.names + 1] = a.name
+                    if remaining and (not entry.remaining or remaining < entry.remaining) then entry.remaining = remaining end
                 end
             end
+            res.consumables[g.key] = entry
         end
     end
     -- 야영지 효과가 직업 버프를 대체

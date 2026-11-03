@@ -96,6 +96,26 @@ local function build(page)
             end, { description = "포에버 클라이언트의 실제 버프 이름이 기본 데이터와 다르면 여기에 추가하세요." })
         end)
     end):SetPoint("TOPLEFT", 8, -322)
+    local s5 = W.Section(pg, "전투 준비 (도핑 점검)")
+    s5:SetPoint("TOPLEFT", 4, -360)
+    check(pg, 8, 384, "음식 버프 필수", "consumables.requireFood")
+    check(pg, 8, 408, "필수 직업 버프도 함께 점검", "consumables.checkClassBuffs")
+    check(pg, 8, 432, "곧 만료되는 도핑도 누락으로 알림", "consumables.expiringAsMissing")
+    check(pg, 8, 456, "전투 준비 시 공격대 채팅에 자동 공지", "consumables.autoAnnounce")
+    check(pg, 8, 480, "전투 준비 시 준비 확인 함께 실행", "consumables.withReadyCheck")
+    local ml = W.Label(pg, "영약/비약 기준", 12, "muted")
+    ml:SetPoint("TOPLEFT", 280, -388)
+    pg.prepMode = W.Dropdown(pg, 130, BRL.CombatPrep.MODES, function(v) BRL.DB:SetSetting("consumables.mainMode", v) end)
+    pg.prepMode:SetPoint("TOPLEFT", 380, -384)
+    local el = W.Label(pg, "최소 비약 수", 12, "muted")
+    el:SetPoint("TOPLEFT", 280, -416)
+    pg.prepMin = W.EditBox(pg, 40, 22, { numeric = true, onCommit = function(t)
+        BRL.DB:SetSetting("consumables.minElixirs", math.max(1, math.min(5, tonumber(t) or 1)))
+    end })
+    pg.prepMin:SetPoint("TOPLEFT", 380, -412)
+    local pn = W.Paragraph(pg, "만료 임박 기준은 위 버프 설정의 만료 경고(분)를 따릅니다. 물약·주문서처럼 사용 시 사라지는 소모품은 점검할 수 없습니다.", 420, 11)
+    pn:SetPoint("TOPLEFT", 280, -444)
+    T.SetTextColor(pn, "muted")
 
     -- 경매 / 정산
     local pa = panel("auction")
@@ -307,6 +327,9 @@ end
 local function refresh(page)
     for _, cb in ipairs(page.checks) do cb:SetChecked(BRL.DB:GetSetting(cb.path) and true or false) end
     if page.tab == "general" then
+        local pg = page.panels.general
+        pg.prepMode:SetValue(BRL.acct.consumables.mainMode, true)
+        if not pg.prepMin.edit.hasFocus then pg.prepMin:SetText(tostring(BRL.acct.consumables.minElixirs or 1)) end
         local lines = { "애드온 버전 (최근 확인):" }
         for key, v in pairs(BRL.Sync.versions) do lines[#lines + 1] = "  " .. API.ShortName(key) .. ": " .. tostring(v) end
         if #lines == 1 then lines[#lines + 1] = "  확인 기록 없음" end

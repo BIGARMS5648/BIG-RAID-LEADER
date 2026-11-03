@@ -60,6 +60,16 @@ DB.ACCOUNT_DEFAULTS = {
     buffs = { campReplacesClassBuff = true, expireWarnMinutes = 5, required = {} },
     readiness = { minDurability = 50 },
     command = { pullSeconds = 10, breakMinutes = 5 },
+    composition = { excluded = {}, include = "approved", targets = {} },
+    consumables = {
+        requireFood = true,             -- 음식 버프 필수
+        mainMode = "flask_or_elixir",   -- flask_or_elixir | flask | elixir | none
+        minElixirs = 1,                 -- 비약 기준일 때 최소 비약 수
+        checkClassBuffs = true,         -- 필수 직업 버프도 함께 점검
+        expiringAsMissing = false,      -- 곧 만료되는 도핑도 누락으로 알림
+        autoAnnounce = false,           -- 전투 준비 시 공격대 채팅 자동 공지
+        withReadyCheck = false,         -- 전투 준비 시 준비 확인 함께 실행
+    },
 }
 
 DB.CHAR_DEFAULTS = {

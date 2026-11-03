@@ -43,6 +43,7 @@ local function build(page)
         { "전투 재정비", function() Cmd:Regroup() end },
         { "휴식 시작", function() Cmd:BreakStart(tonumber(pc.breakMin:GetText()) or BRL.acct.command.breakMinutes) end },
         { "휴식 종료", function() Cmd:BreakEnd() end },
+        { "전투 준비 (도핑 점검)", function() BRL.CombatPrep:Run() end },
         { "보스 공략 안내", function()
             local key = page.planKey ~= "default" and page.planKey or BRL.RaidProgress:GetCurrentBoss()
             if not key then BRL:Print("오른쪽 위에서 보스를 선택하거나 현재 보스를 지정하세요.") return end

@@ -15,7 +15,7 @@ globals = {
     "BigRaidLeader", "BigRaidLeaderDB", "BigRaidLeader_ToggleUI", "BigRaidLeader_OnAddonCompartmentClick",
     "BigRaidLeader_Binding", "SlashCmdList", "SLASH_BIGRAIDLEADER1", "SLASH_BIGRAIDLEADER2", "SLASH_BIGRAIDLEADER3",
     "BINDING_HEADER_BIGRAIDLEADER", "BINDING_NAME_BRL_TOGGLE", "BINDING_NAME_BRL_READYCHECK", "BINDING_NAME_BRL_PULL",
-    "BINDING_NAME_BRL_CANCELPULL", "BINDING_NAME_BRL_AUCTION", "UISpecialFrames",
+    "BINDING_NAME_BRL_CANCELPULL", "BINDING_NAME_BRL_AUCTION", "BINDING_NAME_BRL_COMBATPREP", "UISpecialFrames",
 }
 read_globals = {
     -- Lua / WoW 확장

@@ -81,6 +81,11 @@ function T.fresh(opts)
     BRL.Sync.received = { notices = {}, roles = nil, auction = nil, awards = {}, payout = nil, notes = {} }
     BRL.Groups.applying = nil
     BRL.BossPlans.timer = nil
+    if BRL.UI.frame then BRL.UI.frame:Hide() end
+    if BRL.PrepReport.frame then BRL.PrepReport.frame:Hide() end
+    BRL.CombatPrep.last = nil
+    BRL.Composition.cache = nil
+    M.auras = {}
     BRL.Perm.override = opts.role
     return BRL
 end

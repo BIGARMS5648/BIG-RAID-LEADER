@@ -23,6 +23,16 @@ local function build(page)
             return T.Color(r.lowDurability and "red" or "green", r.durability .. "%")
         end },
     }
+    cols[#cols + 1] = { title = "도핑", width = 110, render = function(r)
+        local p = BRL.CombatPrep:RowFor(r.key)
+        if not p then return T.Color("muted", "미점검") end
+        if p.unavailable then return T.Color("muted", BRL.CombatPrep.UNAVAILABLE_LABEL[p.unavailable] or "?") end
+        if p.ok then return T.Color("green", "완료") .. (#p.expiring > 0 and T.Color("yellow", " (만료 임박)") or "") end
+        local parts = {}
+        for _, x in ipairs(p.missing) do parts[#parts + 1] = x end
+        if #p.buffsMissing > 0 then parts[#parts + 1] = "버프" .. #p.buffsMissing end
+        return T.Color("red", table.concat(parts, ","))
+    end }
     for _, item in ipairs(BRL.Data.ReadyManualItems) do
         cols[#cols + 1] = { title = item.name, width = 0, align = "CENTER", render = function(r)
             return r.manual[item.key] and T.Color("green", "✔") or T.Color("muted", "·")
@@ -51,6 +61,7 @@ local function build(page)
 
     local _, f = UI.BottomBar(page)
     f:Add(W.Button(f.parent, "준비 확인 시작", 110, 24, function() Ready:Start() end, { kind = "primary", perm = "raid.command" }))
+    f:Add(W.Button(f.parent, "전투 준비(도핑)", 110, 24, function() BRL.CombatPrep:Run() end, { kind = "primary", tooltip = { "음식/영약/비약/필수 버프 점검" } }))
     f:Add(W.Button(f.parent, "결과 채팅 출력", 110, 24, function() BRL.UIActions.SendLines(Ready:OutputLines(), "준비 상태 출력") end))
     f:Add(W.Button(f.parent, "전원 항목 체크", 110, 24, function()
         local items = {}

@@ -29,10 +29,19 @@ BRL.Data.ClassBuffs = {
       spellIds = { 19506, 20905, 20906 }, keywords = { "정조준 오라", "Trueshot Aura" } },
 }
 
+-- 도핑(소모품) 판별: 이름 키워드 + 오리지널 주문 ID. 포에버 클라이언트에서 다를 수 있으며
+-- 설정 > 버프 키워드 보완에서 이름을 추가할 수 있다. (물약은 사용 시 사라져 점검 불가 → 수동)
 BRL.Data.ConsumableGroups = {
-    { key = "FOOD", name = "음식 버프", keywords = { "포만감", "Well Fed" } },
-    { key = "FLASK", name = "영약", keywords = { "영약", "Flask" } },
-    { key = "ELIXIR", name = "비약", keywords = { "비약", "Elixir" } },
+    { key = "FOOD", name = "음식 버프",
+      keywords = { "포만감", "Well Fed" },
+      -- 일부 음식은 '포만감'이 아닌 이름의 버프를 준다 (민첩성 증가, 마나 회복 등)
+      spellIds = { 19705, 19706, 19708, 19709, 19710, 19711, 18192, 18194, 22730, 24799, 25661, 18125, 18141 } },
+    { key = "FLASK", name = "영약",
+      keywords = { "영약", "Flask" },
+      spellIds = { 17626, 17627, 17628, 17629 } },
+    { key = "ELIXIR", name = "비약",
+      keywords = { "비약", "Elixir" },
+      spellIds = { 17538, 17539, 11405, 11348, 11334, 3593, 11474, 26276, 21920, 17535, 17537, 11396, 11390, 11406 } },
     { key = "POTION", name = "전투 물약", manual = true },
     { key = "PROTECTION", name = "보호 물약", manual = true },
 }

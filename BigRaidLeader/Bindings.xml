@@ -11,6 +11,9 @@
 	<Binding name="BRL_CANCELPULL" category="ADDONS">
 		BigRaidLeader_Binding("CANCELPULL")
 	</Binding>
+	<Binding name="BRL_COMBATPREP" category="ADDONS">
+		BigRaidLeader_Binding("PREP")
+	</Binding>
 	<Binding name="BRL_AUCTION" category="ADDONS">
 		BigRaidLeader_Binding("AUCTION")
 	</Binding>
