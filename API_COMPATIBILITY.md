@@ -5,7 +5,7 @@
 > **중요**: 개발 환경에서는 실제 포에버 클라이언트를 실행할 수 없었습니다. 아래 "지원" 여부는
 > 공개 자료(블리자드 발표를 인용한 커뮤니티 자료, Warcraft Wiki의 12.x API 변경 기록 요약)와
 > 리테일 12.x API 지식을 바탕으로 한 **예상**입니다. 실제 지원 여부는 게임 안에서
-> `/brl 호환성` 또는 **설정 > 호환성** 화면으로 확인하고, 그 결과를 이 문서에 반영해야 합니다.
+> `/brl 진단` 또는 **설정 > 진단** 화면으로 확인하고, 그 결과를 이 문서에 반영해야 합니다.
 
 ## 1. 포에버 클라이언트 환경 (조사 결과)
 
@@ -87,7 +87,6 @@
 | `C_ChatInfo.InChatMessagingLockdown` | 채팅 잠금 확인 | 12.x 지원 | 없으면 잠금 없음으로 간주 |
 | 공개 채널/일반/외치기 전송 | 모집 문구 | 하드웨어 이벤트 필요 | **버튼 클릭 시점에 즉시 전송**(대기열 사용 안 함) |
 | `CHAT_MSG_RAID/RAID_LEADER/RAID_WARNING/PARTY/PARTY_LEADER/WHISPER` | 채팅 입찰 인식 | 지원(잠금 중 Secret) | **수동 입찰 입력** |
-| `CHAT_MSG_SYSTEM` + `RANDOM_ROLL_RESULT` | 주사위 결과 (한국어 조사 처리) | 지원 | 수동 분배 |
 | `GetChannelList` | 모집 채널 목록 | 지원 | 길드/일반/외치기 |
 | `ADDON_RESTRICTION_STATE_CHANGED` | 잠금 해제 감지 | 12.x | 2~3초 간격 재시도 |
 
@@ -138,12 +137,11 @@
 9. 보안 징표 버튼 한 번 클릭 = 한 번 동작
 10. `C_PartyInfo.DoCountdown` 사용 가능 여부
 11. `ENCOUNTER_START/END` 의 encounterID/이름 제공 여부 (보스 이름 자동 갱신)
-12. `RANDOM_ROLL_RESULT` 한국어 문자열 형식
-13. 도핑 버프(음식/영약/비약)의 실제 이름과 주문 ID (전투 준비 점검은 오리지널 ID + 한국어/영어 키워드 사용)
-14. `C_Item.GetItemCount` 가 거래 창에 올린(잠긴) 아이템을 가방 수량에 포함하는지, 거래 완료 후 `BAG_UPDATE_DELAYED` 가 오는지
-15. `SetTradeMoney` 를 애드온 버튼 클릭으로 호출할 수 있는지 (보호 함수면 "직접 입력" 안내로 동작)
-16. 사망한 공대원의 영혼석 버프(`영혼석 부활`)를 `C_UnitAuras` 로 읽을 수 있는지
-17. `UnitIsDeadOrGhost` 가 전투 종료 직후(1.5초) 정확한지
+12. 도핑 버프(음식/영약/비약)의 실제 이름과 주문 ID (전투 준비 점검은 오리지널 ID + 한국어/영어 키워드 사용)
+13. `C_Item.GetItemCount` 가 거래 창에 올린(잠긴) 아이템을 가방 수량에 포함하는지, 거래 완료 후 `BAG_UPDATE_DELAYED` 가 오는지
+14. `SetTradeMoney` 를 애드온 버튼 클릭으로 호출할 수 있는지 (보호 함수면 "직접 입력" 안내로 동작)
+15. 사망한 공대원의 영혼석 버프(`영혼석 부활`)를 `C_UnitAuras` 로 읽을 수 있는지
+16. `UnitIsDeadOrGhost` 가 전투 종료 직후(1.5초) 정확한지
 
 > 2.0 부터 애드온 간 통신(`SendAddonMessage`/`CHAT_MSG_ADDON`)을 사용하지 않습니다 (공격대장 전용).
 > 구성 분석·추천 직업(1.1.0)은 게임 API 를 추가로 사용하지 않고, 공대원 직업(`GetRaidRosterInfo`)과 애드온에서 지정한 역할만으로 계산합니다.
