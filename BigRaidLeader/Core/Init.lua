@@ -45,7 +45,7 @@ local HELP = {
     "/brl 세션 [이름] - 새 공격대 세션",
     "/brl 백업 - 데이터 백업 / /brl 진단 - 자가 진단 (API·무결성·오류 기록, 문제 보고용)",
     "/brl 추적 - 최근 거래 이벤트 추적",
-    "/brl hud - 공대장 HUD 열기/닫기 / /brl 판정 - 풀링 판정 / /brl 독촉 - 미수금 독촉 귓속말",
+    "/brl hud - 공대장 HUD 열기/닫기 / /brl 판정 - 풀링 판정",
     "/brl 복구 - 전멸 복구 점검 (사망자·영혼석·재버프·도핑) / /brl 보스준비 - 현재 보스 준비 적용",
 }
 
@@ -141,13 +141,6 @@ function Init:Slash(msg)
     end
     if cmd == "판정" or lower == "pullcheck" then
         for _, l in ipairs(BRL.CombatPrep:PullCheckLines()) do BRL:Print(l) end
-        return
-    end
-    if cmd == "독촉" or lower == "dun" then
-        local s = BRL.Session:GetActive()
-        if not s then BRL:Print("공격대 세션이 없습니다.") return end
-        local sent, skipped = BRL.Payments:SendDunning(s.id)
-        BRL:Print("독촉 귓속말 %d명 전송%s", sent, skipped > 0 and (" (제외 " .. skipped .. "명)") or "")
         return
     end
     if cmd == "복구" or lower == "wipe" then

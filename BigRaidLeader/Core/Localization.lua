@@ -66,7 +66,7 @@ L.AUC_unsold = "유찰"
 L.AUC_cancelled = "취소"
 
 -- 낙찰 상태
-L.AWARD_unpaid = "미수금"
+L.AWARD_unpaid = "수금 전"
 L.AWARD_partial = "부분 입금"
 L.AWARD_paid = "완납"
 L.AWARD_overpaid = "초과 입금"
@@ -95,7 +95,6 @@ L.LEDGER_refund = "경매금 환불"
 
 -- 정산 상태
 L.SETTLE_draft = "작성 중"
-L.SETTLE_estimated = "예상 정산"
 L.SETTLE_confirmed = "확정 정산"
 L.SETTLE_paying = "지급 진행 중"
 L.SETTLE_completed = "완료"

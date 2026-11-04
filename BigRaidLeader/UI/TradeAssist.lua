@@ -1,5 +1,5 @@
 -- BIG RAID LEADER - 거래 창 옆 정보 패널
--- 거래 상대의 미납 낙찰금/미지급 분배금과 현재 거래 창 금액을 실시간으로 비교해 보여준다.
+-- 거래 상대에게서 받을 낙찰금/줄 분배금과 현재 거래 창 금액을 실시간으로 비교해 보여준다.
 -- [분배금 입력]은 내 골드 칸에 남은 분배금을 넣기만 하며, 거래 수락은 절대 자동으로 하지 않는다.
 local _, BRL = ...
 local T, W, Money, API, U = BRL.Theme, BRL.Widgets, BRL.Money, BRL.API, BRL.Util
@@ -22,13 +22,13 @@ function TA:Info(sess)
     local live = sess.live or {}
     local info = { partnerKey = key, partnerName = key and API.ShortName(key) or "알 수 없음", partnerClass = sess.partnerClass,
         offered = live.targetMoney or 0, given = live.playerMoney or 0, accepted = sess.playerAccepted, targetAccepted = sess.targetAccepted }
-    info.outstanding, info.outList = BRL.Payments:OutstandingFor(key)
+    info.awardDue, info.awardList = BRL.Payments:PendingAwardsFor(key)
     info.payout, info.payoutList = BRL.Payments:UnpaidPayoutFor(key)
-    -- 받은 골드 vs 미납 낙찰금
-    if info.outstanding > 0 then
+    -- 상대가 넣은 골드 vs 받을 낙찰금
+    if info.awardDue > 0 then
         if info.offered == 0 then info.offerState = "none"
-        elseif info.offered == info.outstanding then info.offerState = "match"
-        elseif info.offered < info.outstanding then info.offerState = "short"
+        elseif info.offered == info.awardDue then info.offerState = "match"
+        elseif info.offered < info.awardDue then info.offerState = "short"
         else info.offerState = "over" end
     end
     -- 준 골드 vs 미지급 분배금
@@ -45,22 +45,22 @@ function TA:Lines(info)
     local lines = {}
     if not info then return lines end
     lines[#lines + 1] = T.Color("goldBright", "거래 상대: ") .. BRL.Data.ColorName(info.partnerName, info.partnerClass)
-    if info.outstanding > 0 then
+    if info.awardDue > 0 then
         local items = {}
-        for i, e in ipairs(info.outList) do
-            if i > 3 then items[#items + 1] = "외 " .. (#info.outList - 3) .. "건" break end
+        for i, e in ipairs(info.awardList) do
+            if i > 3 then items[#items + 1] = "외 " .. (#info.awardList - 3) .. "건" break end
             items[#items + 1] = U.StripColors(U.ItemNameFromLink(e.award.itemLink) or e.award.itemName or "?")
         end
-        lines[#lines + 1] = "미납 낙찰금: " .. T.Color("red", Money.Format(info.outstanding)) .. T.Color("muted", " (" .. table.concat(items, ", ") .. ")")
+        lines[#lines + 1] = "받을 낙찰금: " .. T.Color("gold", Money.Format(info.awardDue)) .. T.Color("muted", " (" .. table.concat(items, ", ") .. ")")
         local st = info.offerState
-        local diff = info.offered - info.outstanding
+        local diff = info.offered - info.awardDue
         lines[#lines + 1] = "상대가 넣은 골드: " .. Money.Format(info.offered) .. "  " ..
-            (st == "match" and T.Color("green", "✔ 미납액과 일치")
+            (st == "match" and T.Color("green", "✔ 낙찰금과 일치")
             or st == "short" and T.Color("yellow", "부족 " .. Money.Format(-diff))
             or st == "over" and T.Color("red", "초과 " .. Money.Format(diff))
             or T.Color("muted", "아직 없음"))
     else
-        lines[#lines + 1] = "미납 낙찰금: " .. T.Color("muted", "없음") .. (info.offered > 0 and ("  · 상대가 넣은 골드 " .. Money.Format(info.offered)) or "")
+        lines[#lines + 1] = "받을 낙찰금: " .. T.Color("muted", "없음") .. (info.offered > 0 and ("  · 상대가 넣은 골드 " .. Money.Format(info.offered)) or "")
     end
     if info.payout > 0 then
         local st = info.giveState
@@ -71,8 +71,8 @@ function TA:Lines(info)
             or st == "over" and T.Color("red", "초과 " .. Money.Format(diff))
             or "")
     end
-    if info.outstanding > 0 and info.payout > 0 then
-        lines[#lines + 1] = T.Color("yellow", "미납 낙찰금과 분배금이 모두 있습니다. 상계하지 말고 각각 거래로 처리하세요.")
+    if info.awardDue > 0 and info.payout > 0 then
+        lines[#lines + 1] = T.Color("yellow", "받을 낙찰금과 줄 분배금이 모두 있습니다. 상계하지 말고 각각 거래로 처리하세요.")
     end
     lines[#lines + 1] = T.Color("muted", "거래 수락은 직접 눌러 주세요. 애드온은 자동 수락하지 않습니다.")
     return lines

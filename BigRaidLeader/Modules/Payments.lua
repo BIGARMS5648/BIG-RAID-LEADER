@@ -137,7 +137,7 @@ end
 ---------------------------------------------------------------------------
 -- 제안 (자동 확정 없음)
 ---------------------------------------------------------------------------
--- 거래 상대의 미수 낙찰에 오래된 순서로 배분 제안
+-- 거래 상대의 수금 전 낙찰에 오래된 순서로 배분 제안
 function P:SuggestAuctionAllocations(tr)
     local out = {}
     if not J():IsCounted(tr) or not tr.partnerKey then return out end
@@ -364,7 +364,7 @@ function P:AllocatePayout(tradeId, obligationId, amount, opts)
 end
 
 -- 공대장 본인 낙찰: 본인 지갑의 골드를 공대 금액으로 낸 것으로 기록 (거래 로그 "본인 지급" + 수금 연결)
--- amount 생략 시 남은 미수금 전액. opts: allowOverpay
+-- amount 생략 시 남은 낙찰금 전액. opts: allowOverpay
 function P:PayAwardFromSelf(awardId, amount, opts)
     opts = opts or {}
     local aw = DB:Get("awards", awardId)
@@ -375,7 +375,7 @@ function P:PayAwardFromSelf(awardId, amount, opts)
     if not ok then return nil, why end
     local st = self:AwardStatus(aw)
     amount = amount or st.outstanding
-    if not Money.IsValid(amount) or amount <= 0 then return nil, "남은 미수금이 없습니다" end
+    if not Money.IsValid(amount) or amount <= 0 then return nil, "기록할 낙찰금이 없습니다" end
     if amount > st.outstanding and not opts.allowOverpay then return nil, "overpay", { outstanding = st.outstanding } end
     local tr, err = J():AddSelf({
         received = amount, purpose = "auction_payment", sessionId = aw.sessionId,
@@ -461,10 +461,9 @@ function P:SetNeedsCheck(obligationId, flag, reason)
 end
 
 ---------------------------------------------------------------------------
--- 미수금 조회 (독촉/입찰 제한/거래 안내)
+-- 거래 창 정보 패널용: 이 상대에게서 받을 낙찰금 (수금 연결 전 낙찰)
 ---------------------------------------------------------------------------
--- memberKey 의 미수금 합계와 낙찰 목록. sessionId 가 없으면 모든 세션.
-function P:OutstandingFor(memberKey, sessionId)
+function P:PendingAwardsFor(memberKey, sessionId)
     local total, list = 0, {}
     if not memberKey then return 0, list end
     for _, aw in pairs(DB:T("awards")) do
@@ -472,87 +471,12 @@ function P:OutstandingFor(memberKey, sessionId)
             local st = self:AwardStatus(aw)
             if st.outstanding > 0 then
                 total = total + st.outstanding
-                list[#list + 1] = { award = aw, outstanding = st.outstanding }
+                list[#list + 1] = { award = aw, amount = st.outstanding }
             end
         end
     end
     table.sort(list, function(a, b) return (a.award.awardedAt or 0) < (b.award.awardedAt or 0) end)
     return total, list
-end
-
--- 세션의 미수금 보유자 목록 (금액 큰 순)
-function P:Debtors(sessionId)
-    local by = {}
-    for _, aw in pairs(DB:T("awards")) do
-        if aw.status == "active" and (not sessionId or aw.sessionId == sessionId) then
-            local st = self:AwardStatus(aw)
-            if st.outstanding > 0 then
-                local d = by[aw.winnerKey]
-                if not d then
-                    d = { key = aw.winnerKey, name = aw.winnerName or BRL.API.ShortName(aw.winnerKey), outstanding = 0, items = {} }
-                    by[aw.winnerKey] = d
-                end
-                d.outstanding = d.outstanding + st.outstanding
-                d.items[#d.items + 1] = BRL.Util.StripColors(BRL.Util.ItemNameFromLink(aw.itemLink) or aw.itemName or "?")
-            end
-        end
-    end
-    local out = {}
-    for _, d in pairs(by) do out[#out + 1] = d end
-    table.sort(out, function(a, b)
-        if a.outstanding ~= b.outstanding then return a.outstanding > b.outstanding end
-        return a.key < b.key
-    end)
-    return out
-end
-
--- 미수금 목록 공지 (공격대 채팅용)
-function P:DebtorLines(sessionId)
-    local lines = { "[BIG RAID LEADER 미수금 안내]" }
-    for _, d in ipairs(self:Debtors(sessionId)) do
-        lines[#lines + 1] = string.format("%s: %s 미수 %s", d.name, table.concat(d.items, ", "), BRL.Money.Format(d.outstanding))
-    end
-    if #lines == 1 then lines[2] = "미수금 없음" end
-    return lines
-end
-
--- 미수금 독촉 귓속말 문구
-function P:DunningMessage(debtor)
-    local items = table.concat(debtor.items, ", ")
-    if #items > 120 then items = BRL.Util.Utf8Truncate(items, 117) .. "…" end
-    return string.format("[BIG RAID LEADER] 미납 낙찰금 안내: %s - 총 %s. 거래로 전달 부탁드립니다.", items, BRL.Money.Format(debtor.outstanding))
-end
-
--- 미수금 보유자에게 귓속말 독촉. keys 생략 시 전체. 같은 사람은 60초 안에 다시 보내지 않음(force 제외)
--- 반환: 보낸 인원, 건너뛴 인원
-function P:SendDunning(sessionId, keys, force)
-    if not BRL.Perm:Require("finance.edit") then return 0, 0 end
-    local session = BRL.Session:Get(sessionId)
-    if not session then return 0, 0 end
-    session.dunning = session.dunning or {}
-    local want
-    if keys then
-        want = {}
-        for _, k in ipairs(keys) do want[k] = true end
-    end
-    local sent, skipped = 0, 0
-    local now = BRL.Util.Clock()
-    for _, d in ipairs(self:Debtors(sessionId)) do
-        if not want or want[d.key] then
-            local last = session.dunning[d.key]
-            if not force and last and last.clock and (now - last.clock) < 60 then
-                skipped = skipped + 1
-            elseif d.key == BRL.playerKey then
-                skipped = skipped + 1 -- 본인 낙찰은 '본인 낙찰금 기록'으로 처리
-            else
-                BRL.ChatOut:Send(self:DunningMessage(d), "WHISPER", d.key)
-                session.dunning[d.key] = { at = BRL.Util.Now(), clock = now, amount = d.outstanding, count = ((last and last.count) or 0) + 1 }
-                sent = sent + 1
-            end
-        end
-    end
-    if sent > 0 then DB:Audit("payment.dunning", "session", sessionId, { sent = sent }) end
-    return sent, skipped
 end
 
 -- 분배 미지급 (memberKey 에게 줘야 할 남은 금액)

@@ -15,7 +15,6 @@ local TILES = {
     { key = "progress", label = "보스 진행", page = "boss" },
     { key = "auction", label = "경매 총액", page = "auction" },
     { key = "collected", label = "실제 수금액", page = "ledger" },
-    { key = "outstanding", label = "미수금", page = "ledger" },
     { key = "distributable", label = "분배 가능 골드", page = "settlement" },
     { key = "unpaid", label = "미지급금", page = "settlement" },
     { key = "settle", label = "정산 진행 상태", page = "settlement" },
@@ -103,7 +102,6 @@ local function refresh(page)
         local sum = BRL.Ledger:Summary(session.id)
         setTile(page, "auction", Money.Format(sum.totalAwarded, { goldOnly = true }))
         setTile(page, "collected", Money.Format(sum.collected, { goldOnly = true }), "green")
-        setTile(page, "outstanding", Money.Format(sum.outstanding, { goldOnly = true }), sum.outstanding > 0 and "red" or "green")
         local st = BRL.Settlement:ForSession(session.id)
         if st then
             local r = st.result or BRL.Settlement:Compute(st, "confirmed")
@@ -118,7 +116,7 @@ local function refresh(page)
         setTile(page, "unpaid", Money.Format(sum.unpaid, { goldOnly = true }), sum.unpaid > 0 and "red" or "green")
         setTile(page, "balance", Money.Format(sum.balance, { goldOnly = true }))
     else
-        for _, k in ipairs({ "auction", "collected", "outstanding", "distributable", "unpaid", "settle", "balance" }) do setTile(page, k, "-", "muted") end
+        for _, k in ipairs({ "auction", "collected", "distributable", "unpaid", "settle", "balance" }) do setTile(page, k, "-", "muted") end
         warnings[#warnings + 1] = "공격대 세션이 없습니다. 상단에서 새 세션을 만드세요."
     end
     local unverified = #BRL.TradeJournal:Query({ group = "unverified" })

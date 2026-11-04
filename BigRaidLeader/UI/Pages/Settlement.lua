@@ -58,14 +58,8 @@ end
 
 local function build(page)
     UI:PageHeader(page, L.MENU_SETTLEMENT, "실제 수금 기준 확정 정산 · 정수 코퍼 계산")
-    page.basis = "confirmed"
     page.status = W.Label(page, "", 12, "gold")
     page.status:SetPoint("TOPLEFT", 4, -28)
-    page.basisDrop = W.Dropdown(page, 170, {
-        { value = "confirmed", text = "확정 정산 (실제 수금)" }, { value = "estimated", text = "예상 정산 (전원 완납 가정)" },
-    }, function(v) page.basis = v UI:RequestRefresh() end)
-    page.basisDrop:SetPoint("TOPRIGHT", -4, -26)
-    page.basisDrop:SetValue("confirmed", true)
 
     -- 설정 패널
     local cfg = W.Panel(page, T.colors.panel2, T.colors.borderDim)
@@ -334,7 +328,7 @@ local function refresh(page)
     for i, x in ipairs(c.deductions) do costs[#costs + 1] = { list = "deductions", index = i, label = x.label, amount = x.amount } end
     cfg.costs:SetData(costs)
 
-    local r = (stt.locked and stt.result) or S:Compute(stt, page.basis)
+    local r = (stt.locked and stt.result) or S:Compute(stt)
     local pay = S:PaymentState(stt.id)
     local obByKey = {}
     for _, row in ipairs(pay.rows) do obByKey[row.ob.memberKey .. "|" .. row.ob.kind] = row end
@@ -361,7 +355,7 @@ local function refresh(page)
     end)
     page.list:SetData(rows, true)
     page.status:SetText(string.format("상태: %s · 버전 v%d%s · 기준: %s", BRL.Label("SETTLE_", stt.status), stt.version or 0,
-        stt.locked and T.Color("blue", " · 잠금") or "", (stt.locked and "확정 시점 실제 수금") or (page.basis == "estimated" and "예상(전원 완납 가정)" or "현재 실제 수금")))
+        stt.locked and T.Color("blue", " · 잠금") or "", (stt.locked and "확정 시점 실제 수금") or "현재 실제 수금"))
     page.summary:SetText(string.format("총수입 %s (수금 %s + 기타 %s + 이월 %s) − 장부지출 %s − 운영비 %s − 공제 %s − 수수료 %s − 예비금 %s\n= 분배 가능 %s · 분배 인원 %d명 · %s %s · 잔돈 %s%s",
         Money.Format(r.gross), Money.Format(r.auctionBase), Money.Format(r.otherIncome), Money.Format(r.carryIn), Money.Format(r.ledgerExpenses),
         Money.Format(r.operating), Money.Format(r.deductions), Money.Format(r.leaderFee), Money.Format(r.reserve),

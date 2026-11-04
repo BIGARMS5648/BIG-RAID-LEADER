@@ -6,7 +6,7 @@ local Stats = BRL:NewModule("Statistics")
 
 function Stats:Auction(sessionId)
     local s = { items = 0, awarded = 0, unsold = 0, cancelled = 0, queued = 0, total = 0, average = 0,
-        top = nil, collected = 0, outstanding = 0, collectRate = 0 }
+        top = nil, collected = 0 }
     for _, a in pairs(DB:T("auctions")) do
         if a.sessionId == sessionId then
             s.items = s.items + 1
@@ -23,9 +23,8 @@ function Stats:Auction(sessionId)
         end
     end
     local coll = BRL.Payments:SessionCollection(sessionId)
-    s.collected, s.outstanding = coll.collected, coll.outstanding
+    s.collected = coll.collected
     s.average = s.awarded > 0 and math.floor(s.total / s.awarded) or 0
-    s.collectRate = s.total > 0 and math.floor(coll.collected * 1000 / s.total + 0.5) / 10 or 0
     return s
 end
 
@@ -42,37 +41,35 @@ function Stats:History()
 end
 
 -- 구매자 기록: 모든 세션의 낙찰을 구매자별로 집계
--- 반환 목록 항목: key, name, class, count, total, average, max, outstanding, sessions, last, items{name, amount, at, session, outstanding}
+-- 반환 목록 항목: key, name, class, count, total, average, max, sessions, last, items{name, amount, at, session}
 function Stats:Buyers(query)
     local by = {}
     local function entry(key, name, class)
         local b = by[key]
         if not b then
-            b = { key = key, name = name or BRL.API.ShortName(key), class = class, count = 0, total = 0, max = 0, outstanding = 0,
+            b = { key = key, name = name or BRL.API.ShortName(key), class = class, count = 0, total = 0, max = 0,
                 sessions = 0, sessionSeen = {}, last = 0, items = {} }
             by[key] = b
         end
         if class and not b.class then b.class = class end
         return b
     end
-    local function add(b, sessionKey, item, amount, at, outstanding, sessionName)
+    local function add(b, sessionKey, item, amount, at, sessionName)
         b.count = b.count + 1
         b.total = b.total + (amount or 0)
         if (amount or 0) > b.max then b.max = amount end
-        b.outstanding = b.outstanding + (outstanding or 0)
         if not b.sessionSeen[sessionKey] then
             b.sessionSeen[sessionKey] = true
             b.sessions = b.sessions + 1
         end
         if (at or 0) > b.last then b.last = at end
-        b.items[#b.items + 1] = { name = item, amount = amount, at = at, session = sessionName, outstanding = outstanding }
+        b.items[#b.items + 1] = { name = item, amount = amount, at = at, session = sessionName }
     end
     for _, aw in pairs(DB:T("awards")) do
         if aw.status == "active" and aw.winnerKey then
-            local st = BRL.Payments:AwardStatus(aw)
             local s = BRL.Session:Get(aw.sessionId)
             add(entry(aw.winnerKey, aw.winnerName, aw.winnerClass), aw.sessionId,
-                BRL.Util.StripColors(BRL.Util.ItemNameFromLink(aw.itemLink) or aw.itemName or "?"), aw.amount, aw.awardedAt, st.outstanding, s and s.name)
+                BRL.Util.StripColors(BRL.Util.ItemNameFromLink(aw.itemLink) or aw.itemName or "?"), aw.amount, aw.awardedAt, s and s.name)
         end
     end
     local out = {}

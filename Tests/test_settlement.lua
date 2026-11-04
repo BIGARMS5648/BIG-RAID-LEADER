@@ -171,18 +171,15 @@ T.test("10. 부분 지급 / 지급 완료 / 중복 지급 방지(16)", function(
     T.eq(BRL.Payments:ObligationStatus(ob2).status, "paid")
 end)
 
-T.test("11. 미수금 발생 - 분배에서 제외 + 확정 시 경고", function()
+T.test("11. 수금 연결된 골드만 분배 (예상 정산·미수금 경고 없음)", function()
     local BRL, _, st = setup(10, 6000 * G, { awardAmount = 10000 * G })
-    local r = BRL.Settlement:Compute(st, "confirmed")
-    T.eq(r.outstanding, 4000 * G)
-    T.eq(r.gross, 6000 * G, "실제로 받지 않은 골드 제외")
-    local est = BRL.Settlement:Compute(st, "estimated")
-    T.eq(est.gross, 10000 * G, "예상 정산은 전원 완납 가정")
-    local res, why, warnings = BRL.Settlement:Finalize(st.id)
-    T.no(res)
-    T.eq(why, "warnings")
-    T.contains(warnings, "미수금")
-    T.ok(BRL.Settlement:Finalize(st.id, { force = true }))
+    local r = BRL.Settlement:Compute(st)
+    T.eq(r.gross, 6000 * G, "수금 연결되지 않은 낙찰금은 분배에 넣지 않음")
+    T.eq(BRL.Settlement:Compute(st, "estimated").gross, 6000 * G, "예상 정산(전원 완납 가정) 없음")
+    for _, w in ipairs(r.warnings) do T.no(w:find("미수", 1, true), "미수금 경고 없음") end
+    for _, c in ipairs(BRL.Settlement:Validate(st.id)) do T.no(c.label:find("미수", 1, true), "미수금 검증 항목 없음") end
+    T.ok(BRL.Settlement:Finalize(st.id), "미수금 때문에 확정이 막히지 않음")
+    for _, l in ipairs(BRL.Reports:BuildBrief(st.id)) do T.no(l:find("미수", 1, true), "보고서에 미수금 줄 없음") end
 end)
 
 T.test("12. 미지급금 발생 - 종료 경고 후 기록 유지", function()

@@ -1,8 +1,7 @@
 -- BIG RAID LEADER - 골드팟 정산 (Settlement / PayoutObligation)
 -- 원칙
 --  * 모든 금액은 정수 코퍼로 계산한다. (MulDiv 로 정밀도 손실 없이 분배)
---  * 실제로 받지 않은 골드는 분배 가능 금액에 포함하지 않는다. (확정 정산 = 실제 수금 기준)
---  * 예상 정산(전원 완납 가정)과 확정 정산을 구분한다.
+--  * 실제로 받은(수금 연결된) 골드만 분배 가능 금액에 포함한다. (경매에서 미수금은 발생하지 않는 것으로 운영)
 --  * 모든 보너스/수수료/공제 기본값은 0, 기본 분배 방식은 전원 균등 분배.
 --  * 합계 항등식 검증: 총수입 = 지출 + 공제 + 수수료 + 예비금 + 분배 합계 + 잔돈 + 이월
 local _, BRL = ...
@@ -207,9 +206,9 @@ local function sumList(list)
     return t
 end
 
--- basis: "confirmed"(실제 수금 기준) | "estimated"(전원 완납 가정)
-function S:Compute(st, basis, summaryOverride)
-    basis = basis or "confirmed"
+-- 실제 수금 기준으로 계산한다. (basis 인자는 이전 버전 호환용, 항상 "confirmed")
+function S:Compute(st, _, summaryOverride)
+    local basis = "confirmed"
     local cfg = st.config
     local sum = summaryOverride or BRL.Ledger:Summary(st.sessionId)
     local r = {
@@ -218,13 +217,12 @@ function S:Compute(st, basis, summaryOverride)
     }
     r.totalAwarded = sum.totalAwarded or 0
     r.collected = sum.collected or 0
-    r.outstanding = sum.outstanding or 0
     r.unallocatedAuctionIncome = sum.unallocatedAuctionIncome or 0
     r.refundDue = sum.refundDue or 0
     r.otherIncome = sum.otherIncome or 0
     local ec = sum.expenseByCat or {}
     r.ledgerExpenses = (ec.operating or 0) + (ec.other_expense or 0) + (ec.adjust_expense or 0)
-    r.auctionBase = (basis == "estimated") and r.totalAwarded or r.collected
+    r.auctionBase = r.collected
     if cfg.includeCarryIn then
         r.carryIn = st.carryInTaken or (BRL.char and BRL.char.carryover) or 0
     else
@@ -337,9 +335,6 @@ function S:Compute(st, basis, summaryOverride)
         end
     end
     -- 경고
-    if basis == "confirmed" and r.outstanding > 0 then
-        r.warnings[#r.warnings + 1] = "미수금 " .. Money.Format(r.outstanding) .. "은 분배 가능 금액에 포함되지 않았습니다"
-    end
     if r.unallocatedAuctionIncome > 0 then
         r.warnings[#r.warnings + 1] = "낙찰에 연결되지 않은 경매금 수금 " .. Money.Format(r.unallocatedAuctionIncome) .. "이 있습니다 (거래 로그에서 연결하세요)"
     end
@@ -361,7 +356,7 @@ function S:Obligations(id, includeVoided)
     return DB:List("payouts", function(o) return o.settlementId == id and (includeVoided or not o.voided) end, "subgroup")
 end
 
--- opts.force: 경고(미수금 등)가 있어도 확정
+-- opts.force: 경고(미연결 수금 등)가 있어도 확정
 function S:Finalize(id, opts)
     opts = opts or {}
     local st = self:Get(id)
@@ -473,7 +468,7 @@ function S:PaymentState(id)
     return res
 end
 
--- 정산 종료. 미수금/미지급금이 남아 있으면 force 필요 (경고 후 기록 유지)
+-- 정산 종료. 미지급금/미환불이 남아 있으면 force 필요 (경고 후 기록 유지)
 function S:Close(id, force)
     local st = self:Get(id)
     if not st then return false, "정산 없음" end
@@ -483,7 +478,6 @@ function S:Close(id, force)
     local pay = self:PaymentState(id)
     local summary = BRL.Ledger:Summary(st.sessionId)
     local issues = {}
-    if summary.outstanding > 0 then issues[#issues + 1] = "미수금 " .. Money.Format(summary.outstanding) end
     if pay.unpaid > 0 then issues[#issues + 1] = "미지급금 " .. Money.Format(pay.unpaid) end
     if summary.refundDue > 0 then issues[#issues + 1] = "미환불 " .. Money.Format(summary.refundDue) end
     if #issues > 0 and not force then return false, "issues", issues end
@@ -525,7 +519,6 @@ function S:Validate(id)
     local function add(label, ok, detail) checks[#checks + 1] = { label = label, ok = ok and true or false, detail = detail } end
     local rhs = r.ledgerExpenses + r.operating + r.deductions + r.leaderFee + r.reserve + r.distributed + r.kept + r.carryOut
     add("총수입 확인", r.gross >= 0 and rhs == r.gross, "총수입 " .. Money.Format(r.gross))
-    add("미수금 확인", sum.outstanding == 0, "미수금 " .. Money.Format(sum.outstanding))
     add("공제 금액 확인", r.distributable >= 0, "지출·공제·수수료·예비금 " .. Money.Format(r.ledgerExpenses + r.operating + r.deductions + r.leaderFee + r.reserve))
     add("분배 인원 확인", r.headcount > 0, r.headcount .. "명 (제외 " .. (r.excluded or 0) .. "명)")
     local amountsOk = true

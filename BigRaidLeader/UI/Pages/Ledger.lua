@@ -7,7 +7,7 @@ local LG = BRL.Ledger
 
 local TILES = {
     { key = "totalAwarded", label = "총 경매액 (예정)" }, { key = "collected", label = "실제 수금액" },
-    { key = "outstanding", label = "미수금" }, { key = "otherIncome", label = "기타 수입" },
+    { key = "otherIncome", label = "기타 수입" },
     { key = "expense", label = "지출 총액" }, { key = "payoutPaid", label = "실제 지급액" },
     { key = "unpaid", label = "미지급금" }, { key = "balance", label = "현재 장부 잔액" },
     { key = "payoutPlanned", label = "분배 예정액" }, { key = "unallocatedAuctionIncome", label = "미연결 수금" },
@@ -107,7 +107,7 @@ local function refresh(page)
     for _, t in ipairs(TILES) do
         local v = sum[t.key] or 0
         local color = "goldBright"
-        if t.key == "outstanding" or t.key == "unpaid" or t.key == "unallocatedAuctionIncome" then color = v > 0 and "red" or "green" end
+        if t.key == "unpaid" or t.key == "unallocatedAuctionIncome" then color = v > 0 and "red" or "green" end
         page.tiles[t.key]:SetValue(Money.Format(v, { goldOnly = v % 10000 == 0 }), color)
     end
     page.list:SetData(LG:Entries(s.id, {

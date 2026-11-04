@@ -1,4 +1,4 @@
--- BIG RAID LEADER - 전리품 경매 화면 (골드 경매 / 낙찰·수금 / 기타 분배 방식)
+-- BIG RAID LEADER - 전리품 경매 화면 (골드 경매 / 낙찰·수금 / 구매자 기록)
 local _, BRL = ...
 local T, W, L, U, Money, API = BRL.Theme, BRL.Widgets, BRL.L, BRL.Util, BRL.Money, BRL.API
 local UI, D, A = BRL.UI, BRL.Dialogs, BRL.UIActions
@@ -8,7 +8,7 @@ local AU, Bids, P = BRL.Auctions, BRL.Bids, BRL.Payments
 -- 낙찰 → 거래 선택 연결
 function A.LinkAwardToTrade(aw)
     local st = P:AwardStatus(aw)
-    if st.outstanding <= 0 then D.Message("미수금이 없습니다.") return end
+    if st.outstanding <= 0 then D.Message("이미 수금 연결이 끝난 낙찰입니다.") return end
     local items = {}
     local trades = BRL.TradeJournal:Query({})
     table.sort(trades, function(a, b)
@@ -31,7 +31,7 @@ function A.LinkAwardToTrade(aw)
     if #items == 0 then D.Message("연결 가능한 완료 거래가 없습니다.\n(거래가 '확인 불가'이면 거래 로그에서 수동 확인 후 연결하세요. 누락된 거래는 수동 기록으로 추가할 수 있습니다.)") return end
     D.Select("수금 거래 선택 - " .. (aw.winnerName or "?"), items, function(tradeId)
         A.LinkTradeToAwardDirect(BRL.TradeJournal:Get(tradeId), aw)
-    end, { description = "낙찰 미수금 " .. Money.Format(st.outstanding) .. " · ★ = 낙찰자 본인 거래" })
+    end, { description = "연결할 낙찰금 " .. Money.Format(st.outstanding) .. " · ★ = 낙찰자 본인 거래" })
 end
 
 function A.LinkTradeToAwardDirect(tr, aw)
@@ -41,7 +41,7 @@ function A.LinkTradeToAwardDirect(tr, aw)
         local res, err = P:AllocateAuction(tr.id, aw.id, v.amount)
         if res then return true end
         if err == "overpay" then
-            D.Confirm("미수금보다 큰 금액입니다. 초과 입금으로 기록할까요?", function()
+            D.Confirm("낙찰금보다 큰 금액입니다. 초과 입금으로 기록할까요?", function()
                 A.Report(P:AllocateAuction(tr.id, aw.id, v.amount, { allowOverpay = true }))
             end, { danger = true, title = "초과 입금 경고" })
             return true
@@ -252,10 +252,6 @@ local function build(page)
             { title = "낙찰자", width = 96, render = function(aw) return BRL.Data.ColorName(aw.winnerName, aw.winnerClass) end },
             { title = "낙찰액", width = 92, align = "RIGHT", render = function(aw) return Money.Format(aw.amount, { goldOnly = aw.amount % 10000 == 0 }) end },
             { title = "수금", width = 92, align = "RIGHT", render = function(aw) return Money.Format(P:AwardStatus(aw).collected, { goldOnly = true }) end },
-            { title = "미수금", width = 92, align = "RIGHT", render = function(aw)
-                local st = P:AwardStatus(aw)
-                return st.outstanding > 0 and T.Color("red", Money.Format(st.outstanding, { goldOnly = true })) or T.Color("muted", "0")
-            end },
             { title = "상태", width = 74, render = function(aw) local st = P:AwardStatus(aw) return T.StatusText(st.status, BRL.Label("AWARD_", st.status)) end },
             { title = "전달", width = 40, align = "CENTER", render = function(aw) return aw.delivered and T.Color("green", "O") or T.Color("muted", "-") end },
         },
@@ -299,14 +295,12 @@ local function build(page)
                 if BRL.Payments:AwardStatus(x).outstanding > 0 then aw = x break end
             end
         end
-        if aw then A.PayAwardFromSelf(aw) else D.Message("미수금이 남은 공대장 본인 낙찰이 없습니다.") end
+        if aw then A.PayAwardFromSelf(aw) else D.Message("기록할 공대장 본인 낙찰이 없습니다.") end
     end, { perm = "finance.edit", tooltip = { "공대장이 직접 낙찰받은 경우, 본인 지갑에서 낸 낙찰금을 거래 로그에 '본인 지급'으로 기록합니다." } }))
     fw:Add(W.Button(wb, "전달 표시", 70, 24, function() local aw = selAw() if aw then AU:SetDelivered(aw.id, not aw.delivered) end end, { perm = "finance.edit" }))
     fw:Add(W.Button(wb, "금액 수정", 70, 24, function() local aw = selAw() if aw then A.ChangeAwardAmount(aw) end end, { perm = "finance.edit" }))
     fw:Add(W.Button(wb, "낙찰 취소", 70, 24, function() local aw = selAw() if aw then A.CancelAward(aw) end end, { kind = "danger", perm = "finance.edit" }))
     fw:Add(W.Button(wb, "결과 공지", 70, 24, function() A.SendLines(AU:ResultLines((BRL.Session:GetActive() or {}).id), "경매 결과") end))
-    fw:Add(W.Button(wb, "미수금 알림", 84, 24, function() A.Dunning() end,
-        { perm = "finance.edit", tooltip = { "미수금이 남은 낙찰자에게 각자 귓속말로 안내하거나 공격대 채팅에 목록을 공지합니다.", "같은 사람에게는 60초 안에 다시 귓속말하지 않습니다." } }))
     pw.note = W.Paragraph(pw, "낙찰 금액은 수금 예정 금액입니다. 실제 수금은 '완료 확인'된 거래를 연결해야 반영됩니다. 자동 매칭은 제안만 하며, 금액이 같아도 자동 확정하지 않습니다.", 880, 11)
     pw.note:SetPoint("BOTTOMLEFT", 4, 8)
     T.SetTextColor(pw.note, "muted")
@@ -327,9 +321,6 @@ local function build(page)
             { title = "총 구매액", width = 100, align = "RIGHT", render = function(b) return Money.Format(b.total, { goldOnly = true }) end },
             { title = "평균", width = 90, align = "RIGHT", render = function(b) return Money.Format(b.average, { goldOnly = true }) end },
             { title = "최고", width = 90, align = "RIGHT", render = function(b) return Money.Format(b.max, { goldOnly = true }) end },
-            { title = "미수금", width = 90, align = "RIGHT", render = function(b)
-                return b.outstanding > 0 and T.Color("red", Money.Format(b.outstanding, { goldOnly = true })) or T.Color("muted", "0")
-            end },
             { title = "세션", width = 44, align = "CENTER", render = function(b) return b.sessions end },
             { title = "최근 구매", width = 86, render = function(b) return b.last > 0 and U.FormatDate(b.last) or "-" end },
         },
@@ -346,18 +337,11 @@ local function build(page)
     fb:Add(W.Button(bb, "구매 내역 복사", 100, 24, function()
         local lines = { "[BIG RAID LEADER 구매자 기록]" }
         for _, b in ipairs(BRL.Statistics:Buyers(pb.search:GetText())) do
-            lines[#lines + 1] = string.format("%s: %d건 / 총 %s / 평균 %s / 최고 %s%s", b.name, b.count, Money.Format(b.total), Money.Format(b.average),
-                Money.Format(b.max), b.outstanding > 0 and (" / 미수 " .. Money.Format(b.outstanding)) or "")
+            lines[#lines + 1] = string.format("%s: %d건 / 총 %s / 평균 %s / 최고 %s", b.name, b.count, Money.Format(b.total), Money.Format(b.average),
+                Money.Format(b.max))
         end
         D.CopyText("구매자 기록", table.concat(lines, "\n"))
     end))
-    fb:Add(W.Button(bb, "선택 구매자 독촉", 110, 24, function()
-        local b = pb.list:GetSelected()
-        local s = BRL.Session:GetActive()
-        if not b or not s then return end
-        local sent = P:SendDunning(s.id, { b.key }, true)
-        BRL:Print(sent > 0 and "%s 님에게 독촉 귓속말을 보냈습니다." or "%s 님은 현재 세션 미수금이 없습니다.", b.name)
-    end, { perm = "finance.edit" }))
 
     page.tabs:Select("auction")
 end
@@ -428,8 +412,8 @@ local function refresh(page)
         pw.list:SetData(sid and AU:Awards(sid, pw.showCancelled:GetChecked()) or {}, true)
         if sid then
             local sum = BRL.Ledger:Summary(sid)
-            pw.summary:SetText(string.format("낙찰 %d건 · 총 경매액 %s · 실제 수금 %s · 미수금 %s%s%s",
-                sum.awardCount, Money.Format(sum.totalAwarded), Money.Format(sum.collected), Money.Format(sum.outstanding),
+            pw.summary:SetText(string.format("낙찰 %d건 · 총 경매액 %s · 실제 수금 %s%s%s",
+                sum.awardCount, Money.Format(sum.totalAwarded), Money.Format(sum.collected),
                 sum.unallocatedAuctionIncome > 0 and (" · " .. T.Color("yellow", "미연결 수금 " .. Money.Format(sum.unallocatedAuctionIncome))) or "",
                 sum.refundDue > 0 and (" · " .. T.Color("red", "환불 필요 " .. Money.Format(sum.refundDue))) or ""))
         else
@@ -439,16 +423,16 @@ local function refresh(page)
         local pb = page.panels.buyers
         local list = BRL.Statistics:Buyers(pb.search:GetText())
         pb.list:SetData(list, true)
-        local total, owed = 0, 0
-        for _, b in ipairs(list) do total, owed = total + b.total, owed + b.outstanding end
-        pb.summary:SetText(string.format("구매자 %d명 · 총 %s · 미수 %s (보관된 세션 포함)", #list, Money.Format(total, { goldOnly = true }), Money.Format(owed, { goldOnly = true })))
+        local total = 0
+        for _, b in ipairs(list) do total = total + b.total end
+        pb.summary:SetText(string.format("구매자 %d명 · 총 %s (모든 세션)", #list, Money.Format(total, { goldOnly = true })))
         local b = pb.list:GetSelected()
         if b then
             local lines = { T.Color("goldBright", b.name) .. " 구매 내역 (최근순)" }
             for i, it in ipairs(b.items) do
                 if i > 12 then lines[#lines + 1] = "… 외 " .. (#b.items - 12) .. "건" break end
-                lines[#lines + 1] = string.format("%s  %s  %s%s  %s", it.at and U.FormatDate(it.at) or "-", it.name or "?", Money.Format(it.amount or 0),
-                    (it.outstanding or 0) > 0 and T.Color("red", " (미수 " .. Money.Format(it.outstanding) .. ")") or "", T.Color("muted", it.session or ""))
+                lines[#lines + 1] = string.format("%s  %s  %s  %s", it.at and U.FormatDate(it.at) or "-", it.name or "?", Money.Format(it.amount or 0),
+                    T.Color("muted", it.session or ""))
             end
             pb.detail:SetText(table.concat(lines, "\n"))
         else

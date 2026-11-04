@@ -6,7 +6,7 @@ local U = BRL.Util
 local DB = {}
 BRL.DB = DB
 
-DB.SCHEMA_VERSION = 3
+DB.SCHEMA_VERSION = 4
 
 -- 레코드 테이블 이름 -> ID 접두사
 DB.TABLES = {
@@ -33,7 +33,7 @@ DB.ACCOUNT_DEFAULTS = {
         completionPopup = true,     -- 거래 직후 목적 분류 창
         suggestLinks = true,        -- 경매/분배 연결 제안
         closeGraceSeconds = 3,      -- 거래 창 닫힘 후 완료 신호 대기 시간
-        assistPanel = true,         -- 거래 창 옆 정보 패널 (미납 낙찰금/미지급 분배금 비교)
+        assistPanel = true,         -- 거래 창 옆 정보 패널 (받을 낙찰금/미지급 분배금 비교)
     },
     auction = {
         defaultDuration = 30,
@@ -51,7 +51,6 @@ DB.ACCOUNT_DEFAULTS = {
         autoConfirmAward = false,   -- 종료 시 자동 낙찰 확정 (기본: 공대장 확인)
         autoNext = false,           -- 연속 경매: 낙찰/유찰 후 다음 대기 경매 자동 시작
         autoNextDelay = 8,          -- 연속 경매 대기 초
-        bidLimitOutstanding = 0,    -- 미납 낙찰금이 이 금액 이상이면 입찰 제한 (코퍼, 0=사용 안 함)
     },
     settlement = {
         rounding = 1,               -- 1=코퍼, 100=실버, 10000=골드

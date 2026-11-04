@@ -35,11 +35,11 @@ function A.LinkTradeToAward(tr)
             items[#items + 1] = {
                 value = aw.id,
                 text = (aw.winnerKey == tr.partnerKey and "|cff5cf272★|r " or "|cff9e9a8f(대리)|r ") .. BRL.Data.ColorName(aw.winnerName, aw.winnerClass) .. " - " .. (aw.itemLink or aw.itemName or "?"),
-                sub = "미수 " .. Money.Format(st.outstanding),
+                sub = "낙찰금 " .. Money.Format(st.outstanding),
             }
         end
     end
-    if #items == 0 then D.Message("미수금이 남은 낙찰이 없습니다.") return end
+    if #items == 0 then D.Message("수금 연결할 낙찰이 없습니다.") return end
     D.Select("경매금 수금 연결 - 낙찰 선택", items, function(awardId)
         local aw = BRL.Auctions:GetAward(awardId)
         local st = P:AwardStatus(aw)
@@ -50,14 +50,14 @@ function A.LinkTradeToAward(tr)
             local res, err = P:AllocateAuction(tr.id, awardId, v.amount)
             if res then return true end
             if err == "overpay" then
-                D.Confirm(string.format("낙찰 미수금(%s)보다 %s 많습니다. 초과 입금으로 기록할까요?",
+                D.Confirm(string.format("낙찰금(%s)보다 %s 많습니다. 초과 입금으로 기록할까요?",
                     Money.Format(st.outstanding), Money.Format(v.amount - st.outstanding)), function()
                     report(P:AllocateAuction(tr.id, awardId, v.amount, { allowOverpay = true }))
                 end, { title = "초과 입금 경고", danger = true })
                 return true
             end
             return false, err
-        end, { description = string.format("거래 미연결 금액: %s / 낙찰 미수금: %s", Money.Format(avail), Money.Format(st.outstanding)) })
+        end, { description = string.format("거래 미연결 금액: %s / 연결할 낙찰금: %s", Money.Format(avail), Money.Format(st.outstanding)) })
     end, { description = string.format("%s 님과의 거래 (연결 가능 %s). ★ = 거래 상대의 낙찰, (대리) = 다른 사람 낙찰 대리 입금",
         tr.partnerName or "?", Money.Format(avail)) })
 end
@@ -375,30 +375,6 @@ function A.SessionHistory()
     end, { description = "선택한 세션으로 전환합니다. (경매·장부·정산 화면이 그 세션 기준으로 바뀝니다)" })
 end
 
--- 미수금 알림 (미수금 안내 공지 + 독촉 귓속말 통합)
-function A.Dunning()
-    local s = BRL.Session:GetActive()
-    if not s then D.Message("공격대 세션이 없습니다.") return end
-    local debtors = BRL.Payments:Debtors(s.id)
-    if #debtors == 0 then D.Message("미수금이 남은 낙찰자가 없습니다.") return end
-    local lines, total = {}, 0
-    for _, d in ipairs(debtors) do
-        lines[#lines + 1] = string.format("%s %s (%s)", d.name, Money.Format(d.outstanding), table.concat(d.items, ", "))
-        total = total + d.outstanding
-    end
-    D.Select("미수금 알림", {
-        { value = "whisper", text = "각자에게 귓속말 (권장)", sub = "같은 사람은 60초 안에 다시 보내지 않음" },
-        { value = "raid", text = "공격대 채팅에 목록 공지" },
-    }, function(v)
-        if v == "raid" then
-            A.SendLines(BRL.Payments:DebtorLines(s.id), "미수금 안내")
-        else
-            local sent, skipped = BRL.Payments:SendDunning(s.id)
-            BRL:Print("독촉 귓속말 %d명 전송%s", sent, skipped > 0 and (" (최근 전송/본인 " .. skipped .. "명 제외)") or "")
-        end
-    end, { description = string.format("미수금 %d명 · 총 %s\n%s", #debtors, Money.Format(total), table.concat(lines, "\n")) })
-end
-
 -- 최근 거래 이벤트 추적 (기록되지 않은 거래 포함)
 function A.TradeTraces()
     local J = BRL.TradeJournal
@@ -471,7 +447,7 @@ function A.PayAwardFromSelf(aw)
     }, function(v)
         local res, err = P:PayAwardFromSelf(aw.id, v.amount)
         if res then BRL:Print("본인 낙찰금 %s을 거래 로그에 '본인 지급'으로 기록했습니다.", Money.Format(v.amount)) return true end
-        if err == "overpay" then return false, "미수금(" .. Money.Format(st.outstanding) .. ")보다 큽니다" end
+        if err == "overpay" then return false, "낙찰금(" .. Money.Format(st.outstanding) .. ")보다 큽니다" end
         return false, err
     end, { description = string.format("%s\n본인 지갑의 골드를 공대 금액으로 낸 것으로 거래 로그에 기록하고 낙찰 수금에 연결합니다. (거래 창 없음, 장부 수입에 반영)", aw.itemName or "?") })
 end

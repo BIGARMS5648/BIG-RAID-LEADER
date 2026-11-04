@@ -1,5 +1,5 @@
 -- BIG RAID LEADER - 공대장 HUD (작은 떠 있는 창)
--- 메인 창을 닫아 둔 채로 진행 현황(경매/카운트, 거래 상대, 풀링 판정, 도핑, 미수·미지급)을 보고
+-- 메인 창을 닫아 둔 채로 진행 현황(경매/카운트, 거래 상대, 풀링 판정, 도핑, 미지급)을 보고
 -- 경매 카운트와 전투 지휘 명령(준비 확인, 풀링, 공격 중지, 후퇴, 재정비, 휴식, 공략 안내)을 바로 실행한다.
 local _, BRL = ...
 local T, W, Money, API, U = BRL.Theme, BRL.Widgets, BRL.Money, BRL.API, BRL.Util
@@ -35,7 +35,7 @@ function UI.LiveSummary(session, compact)
     if tr and BRL.TradeAssist then
         local ti = BRL.TradeAssist:Info(tr)
         local parts = { "거래: " .. ti.partnerName }
-        if ti.outstanding > 0 then parts[#parts + 1] = T.Color("red", "미납 " .. Money.Format(ti.outstanding, { goldOnly = true })) end
+        if ti.awardDue > 0 then parts[#parts + 1] = T.Color("yellow", "낙찰금 " .. Money.Format(ti.awardDue, { goldOnly = true })) end
         if ti.payout > 0 then parts[#parts + 1] = T.Color("blue", "분배 " .. Money.Format(ti.payout, { goldOnly = true })) end
         info[#info + 1] = table.concat(parts, " · ")
     end
@@ -58,8 +58,8 @@ function UI.LiveSummary(session, compact)
     if session then
         local sum = BRL.Ledger:Summary(session.id)
         if compact then
-            if sum.outstanding > 0 or sum.unpaid > 0 then
-                info[#info + 1] = "미수 " .. T.Color("red", Money.Format(sum.outstanding, { goldOnly = true })) .. " · 미지급 " .. T.Color("yellow", Money.Format(sum.unpaid, { goldOnly = true }))
+            if sum.unpaid > 0 then
+                info[#info + 1] = "분배 미지급 " .. T.Color("yellow", Money.Format(sum.unpaid, { goldOnly = true }))
             end
         else
             local st = BRL.Settlement:ForSession(session.id)
@@ -68,9 +68,6 @@ function UI.LiveSummary(session, compact)
                 local done = 0
                 for _, row in ipairs(pay.rows) do if row.remaining == 0 then done = done + 1 end end
                 info[#info + 1] = string.format("분배 지급: %d/%d명 완료 · 남은 %s", done, #pay.rows, Money.Format(pay.unpaid))
-            end
-            if sum.outstanding > 0 then
-                info[#info + 1] = string.format("미수금: %s (%d명)", Money.Format(sum.outstanding), #BRL.Payments:Debtors(session.id))
             end
         end
     end

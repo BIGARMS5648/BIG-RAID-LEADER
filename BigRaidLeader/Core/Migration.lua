@@ -78,6 +78,14 @@ M.steps = {
         end
         if restored > 0 then BRL:Print("보관했던 세션 %d개를 일반 세션 목록으로 되돌렸습니다 (세션 보관 기능 폐기).", restored) end
     end,
+    -- v3 -> v4 (애드온 2.2): 미수금 관련 기능 폐기 → 입찰 제한 설정, 세션별 독촉 기록 제거
+    [4] = function(db)
+        local acct = db.account
+        if type(acct) == "table" and type(acct.auction) == "table" then acct.auction.bidLimitOutstanding = nil end
+        for _, s in pairs(type(db.sessions) == "table" and db.sessions or {}) do
+            if type(s) == "table" then s.dunning = nil end
+        end
+    end,
 }
 
 function M:Run(db)

@@ -33,7 +33,6 @@ function R:BuildBrief(stId)
         "총 경매액: " .. Money.Format(r.totalAwarded),
         "실제 수금: " .. Money.Format(r.collected),
     }
-    if r.outstanding > 0 then lines[#lines + 1] = "미수금: " .. Money.Format(r.outstanding) end
     if r.otherIncome > 0 then lines[#lines + 1] = "기타 수입: " .. Money.Format(r.otherIncome) end
     if r.carryIn > 0 then lines[#lines + 1] = "이월 잔돈: " .. Money.Format(r.carryIn) end
     local opTotal = r.operating + r.ledgerExpenses
@@ -52,7 +51,7 @@ function R:BuildBrief(stId)
         lines[#lines + 1] = "잔돈: " .. Money.Format(r.kept + r.carryOut) .. (r.carryOut > 0 and " (다음 정산 이월)" or " (보관)")
     end
     if st.status ~= "draft" then lines[#lines + 1] = "미지급: " .. Money.Format(pay.unpaid) end
-    lines[#lines + 1] = "정산 상태: " .. (st.status == "draft" and ("예상(" .. (r.basis == "estimated" and "전원 완납 가정" or "현재 수금 기준") .. ")") or statusLabel(st))
+    lines[#lines + 1] = "정산 상태: " .. (st.status == "draft" and "작성 중 (현재 수금 기준)" or statusLabel(st))
     return lines
 end
 
@@ -89,7 +88,6 @@ function R:BuildDetailed(stId)
     add("[수입]")
     add("총 경매액: " .. Money.Format(r.totalAwarded))
     add("실제 수금액: " .. Money.Format(r.collected))
-    add("미수금: " .. Money.Format(r.outstanding))
     add("기타 수입: " .. Money.Format(r.otherIncome))
     add("이월 잔돈 사용: " .. Money.Format(r.carryIn))
     add("총수입(분배 기준): " .. Money.Format(r.gross))

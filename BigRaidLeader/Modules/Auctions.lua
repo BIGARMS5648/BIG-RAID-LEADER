@@ -610,14 +610,14 @@ end
 
 function A:ExportCSV(sessionId)
     local csv = BRL.TradeJournal.CSV
-    local lines = { "경매ID,아이템,수량,상태,시작가,최고입찰,낙찰자,낙찰금액,수금액,미수금,아이템전달,낙찰시각" }
+    local lines = { "경매ID,아이템,수량,상태,시작가,최고입찰,낙찰자,낙찰금액,수금액,아이템전달,낙찰시각" }
     for _, auc in ipairs(self:List(sessionId)) do
         local aw = auc.awardId and DB:Get("awards", auc.awardId)
         local st = aw and BRL.Payments:AwardStatus(aw)
         lines[#lines + 1] = table.concat({
             csv(auc.id), csv(auc.itemName), csv(auc.quantity), csv(BRL.Label("AUC_", auc.status)), csv(auc.startPrice),
             csv(auc.highAmount or ""), csv(aw and aw.winnerKey or ""), csv(aw and aw.amount or ""),
-            csv(st and st.collected or ""), csv(st and st.outstanding or ""), csv(aw and (aw.delivered and "Y" or "N") or ""),
+            csv(st and st.collected or ""), csv(aw and (aw.delivered and "Y" or "N") or ""),
             csv(aw and U.FormatDateTime(aw.awardedAt) or ""),
         }, ",")
     end

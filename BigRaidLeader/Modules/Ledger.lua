@@ -193,7 +193,7 @@ function Ledger:Summary(sessionId)
     local coll = BRL.Payments:SessionCollection(sessionId)
     s.totalAwarded = coll.total            -- 총 경매액 (예정)
     s.collected = coll.collected           -- 실제 수금액 (낙찰에 연결된 금액 - 환불)
-    s.outstanding = coll.outstanding       -- 미수금
+    s.outstanding = coll.outstanding       -- 수금 연결 전 낙찰금 (내부 계산용, 화면에 표시하지 않음)
     s.overpaid = coll.overpaid
     s.refundDue = coll.refundDue
     s.awardCount, s.awardPaidCount = coll.count, coll.paidCount

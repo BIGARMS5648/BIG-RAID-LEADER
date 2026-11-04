@@ -54,7 +54,7 @@ function MM:Create()
             lines[#lines + 1] = " "
             lines[#lines + 1] = "세션: " .. s.name
             lines[#lines + 1] = "경매 " .. BRL.Money.Format(sum.totalAwarded) .. " / 수금 " .. BRL.Money.Format(sum.collected)
-            lines[#lines + 1] = "미수금 " .. BRL.Money.Format(sum.outstanding) .. " / 미지급 " .. BRL.Money.Format(sum.unpaid)
+            lines[#lines + 1] = "분배 미지급 " .. BRL.Money.Format(sum.unpaid)
         end
         return lines
     end)

@@ -73,8 +73,6 @@ function Bids:Place(auctionId, bidderKey, amount, source, meta)
         end
     elseif BRL.acct.auction.requireGroupMember and source == "chat" and API.IsInGroup() and not self:IsGroupMember(bidderKey) then
         reason = "공격대원이 아닙니다"
-    elseif not meta.ignoreLimit then
-        reason = self:LimitReason(bidderKey)
     end
     if reason then
         bid.rejectReason = reason
@@ -86,18 +84,6 @@ function Bids:Place(auctionId, bidderKey, amount, source, meta)
     DB:Audit("bid.accept", "bid", bid.id, { auction = auc.id, bidder = bidderKey, amount = amount, source = source })
     BRL.Auctions:ApplyBid(auc, bid)
     return bid
-end
-
--- 미수금 입찰 제한 (설정 auction.bidLimitOutstanding, 0=사용 안 함)
--- 이전 낙찰금 미납액이 기준 이상이면 새 입찰을 받지 않는다.
-function Bids:LimitReason(bidderKey)
-    local limit = tonumber(BRL.acct.auction.bidLimitOutstanding) or 0
-    if limit <= 0 or not bidderKey then return nil end
-    local owed = BRL.Payments:OutstandingFor(bidderKey)
-    if owed >= limit then
-        return "미납 낙찰금 " .. Money.Format(owed) .. " - 입찰 제한 (기준 " .. Money.Format(limit) .. ")"
-    end
-    return nil
 end
 
 function Bids:IsGroupMember(key)

@@ -1,4 +1,4 @@
--- v2 추가 기능 테스트: 자가 진단 / 거래 정보 패널 / 미수금 독촉·입찰 제한 /
+-- v2 추가 기능 테스트: 자가 진단 / 거래 정보 패널 /
 -- 연속 경매 / 구매자 기록 / 풀링 판정 / 보스 준비 적용 / 전멸 복구 / HUD / 공유 문자열
 local M = MOCK
 local G = 10000
@@ -50,7 +50,7 @@ T.test("자가 진단: 섹션/수준 집계, 문제 상황 감지, 복사 텍스
     T.ok(BRL.Diagnostics:Show())
 end)
 
-T.test("거래 정보 패널: 미납 낙찰금 비교 / 분배금 입력(수락 안 함) / 보호 함수 실패 대체", function()
+T.test("거래 정보 패널: 받을 낙찰금 비교 / 분배금 입력(수락 안 함) / 보호 함수 실패 대체", function()
     local BRL = T.fresh({ group = T.raid(5) })
     local s = BRL.Session:Create({})
     sellOne(BRL, "대원2", 1500 * G, 0, 201)
@@ -58,7 +58,8 @@ T.test("거래 정보 패널: 미납 낙찰금 비교 / 분배금 입력(수락 
     M.Fire("TRADE_SHOW")
     local f = BRL.TradeAssist.frame
     T.ok(f and f:IsShown(), "거래 창 열면 패널 표시")
-    T.contains(f.body:GetText(), "미납 낙찰금")
+    T.contains(f.body:GetText(), "받을 낙찰금")
+    T.no(f.body:GetText():find("미납", 1, true), "미납 표현 없음")
     T.contains(f.body:GetText(), "아직 없음")
     M.trade.targetMoney = 1000 * G
     M.Fire("TRADE_MONEY_CHANGED")
@@ -102,49 +103,29 @@ T.test("거래 정보 패널: 미납 낙찰금 비교 / 분배금 입력(수락 
     T.no(f:IsShown())
 end)
 
-T.test("미수금: 독촉 귓속말 / 60초 재전송 방지 / 입찰 제한", function()
+T.test("미수금 관련 기능 없음: 독촉·미수금 알림·입찰 제한·미수금 표시", function()
     local BRL = T.fresh({ group = T.raid(5) })
     local s = BRL.Session:Create({})
     sellOne(BRL, "대원2", 2000 * G, 500 * G, 301)
-    sellOne(BRL, "대원3", 900 * G, 0, 302)
-    sellOne(BRL, "대원3", 700 * G, 0, 303)
-    local debtors = BRL.Payments:Debtors(s.id)
-    T.eq(#debtors, 2)
-    T.eq(debtors[1].key, "대원3-아즈샤라", "금액 큰 순")
-    T.eq(debtors[1].outstanding, 1600 * G)
-    T.eq(#debtors[1].items, 2)
-    M.Advance(20)
-    M.ClearSent()
-    local sent = BRL.Payments:SendDunning(s.id)
-    T.eq(sent, 2)
-    M.Advance(3)
-    local whispers = 0
-    for _, m in ipairs(M.sent) do
-        if m.chatType == "WHISPER" then
-            whispers = whispers + 1
-            T.contains(m.msg, "미납 낙찰금")
-        end
-    end
-    T.eq(whispers, 2)
-    local again, skipped = BRL.Payments:SendDunning(s.id)
-    T.eq(again, 0)
-    T.eq(skipped, 2, "60초 안 재전송 방지")
-    M.Advance(61)
-    T.eq(BRL.Payments:SendDunning(s.id, { "대원2-아즈샤라" }), 1, "선택 독촉")
-    -- 입찰 제한 (기본 꺼짐)
+    T.no(BRL.Payments.Debtors, "미수금 보유자 목록 없음")
+    T.no(BRL.Payments.SendDunning, "독촉 귓속말 없음")
+    T.no(BRL.UIActions.Dunning, "미수금 알림 없음")
+    T.no(BRL.Bids.LimitReason, "입찰 제한 없음")
+    T.no(BRL.acct.auction.bidLimitOutstanding, "입찰 제한 설정 없음")
+    -- 미납 금액이 있어도 입찰은 그대로 받음
     local auc = assert(BRL.Auctions:Add(M.ItemLink(304, "새 아이템"), { startPrice = 1 }))
     BRL.Auctions:Start(auc.id)
-    local bid = BRL.Bids:Place(auc.id, "대원3", 100 * G, "chat", { channel = "RAID" })
-    T.ok(bid.accepted, "제한 꺼짐: 입찰 가능")
-    BRL.acct.auction.bidLimitOutstanding = 1000 * G
-    local bid2, why = BRL.Bids:Place(auc.id, "대원3", 200 * G, "chat", { channel = "RAID" })
-    T.no(bid2.accepted, "미납 1600 ≥ 기준 1000 → 거부")
-    T.contains(why, "입찰 제한")
-    BRL.acct.auction.bidLimitOutstanding = 1550 * G
-    local bid3 = BRL.Bids:Place(auc.id, "대원2", 300 * G, "chat", { channel = "RAID" })
-    T.ok(bid3.accepted, "미납 1500 < 기준 1550 → 입찰 가능")
-    local bid4 = BRL.Bids:Place(auc.id, "대원3", 400 * G, "manual", { ignoreLimit = true })
-    T.ok(bid4.accepted, "공대장 예외 처리(ignoreLimit)")
+    T.ok(BRL.Bids:Place(auc.id, "대원2", 100 * G, "chat", { channel = "RAID" }).accepted)
+    -- 화면에서 미수금 표시가 사라짐
+    local before = #BRL.errors
+    SlashCmdList.BIGRAIDLEADER("독촉")
+    T.eq(#BRL.errors, before, "/brl 독촉 은 도움말로 처리")
+    BRL.UI:Open("dashboard")
+    BRL.UI:Refresh()
+    T.no(BRL.UI.pages.dashboard.frame.tiles.outstanding, "대시보드 미수금 타일 없음")
+    T.no(rawget(BRL.L, "SETTLE_estimated"), "예상 정산 없음")
+    T.eq(BRL.L.AWARD_unpaid, "수금 전")
+    T.ok(s)
 end)
 
 T.test("연속 경매: 낙찰/유찰 후 자동 시작, 취소, 전투 중 보류, 대기열 끝 공지", function()
@@ -187,7 +168,7 @@ T.test("연속 경매: 낙찰/유찰 후 자동 시작, 취소, 전투 중 보�
     T.ok(found, "대기열 끝 공지")
 end)
 
-T.test("구매자 기록: 세션 합산 / 검색 / 미수금", function()
+T.test("구매자 기록: 세션 합산 / 검색", function()
     local BRL = T.fresh({ group = T.raid(5) })
     local s1 = BRL.Session:Create({ name = "1주차" })
     sellOne(BRL, "대원2", 1000 * G, 1000 * G, 501)
@@ -201,7 +182,7 @@ T.test("구매자 기록: 세션 합산 / 검색 / 미수금", function()
     T.eq(list[1].max, 2500 * G)
     T.eq(list[1].average, 1750 * G)
     T.eq(list[1].sessions, 2)
-    T.eq(list[1].outstanding, 1500 * G)
+    T.no(list[1].outstanding, "구매자 미수금 집계 없음")
     T.eq(#BRL.Statistics:Buyers("대원3"), 1, "검색")
     T.ok(s1 and s2)
     T.eq(#BRL.Statistics:History(), 2, "지난 세션 목록")
@@ -415,7 +396,7 @@ T.test("HUD: 표시/숨김, 경매·카운트·거래·풀링 판정 줄, 슬래
     local text = table.concat(BRL.HUD:Lines(), "\n")
     T.contains(text, "경매 없음")
     T.contains(text, "풀링:")
-    T.contains(text, "미수")
+    T.no(text:find("미수", 1, true), "HUD 에 미수금 표시 없음")
     local auc = assert(BRL.Auctions:Add(M.ItemLink(602, "HUD템"), { startPrice = 1 }))
     BRL.Auctions:Start(auc.id)
     BRL.Bids:Place(auc.id, "대원3", 100 * G, "manual")
@@ -538,7 +519,7 @@ T.test("v2 → v3 마이그레이션: 2.0 의 보관 세션 복원 + 폐기 기�
     db.account.auction.policyAcknowledged = true
     db.schemaVersion = 2
     T.ok(BRL.Migration:Run(db))
-    T.eq(db.schemaVersion, 3)
+    T.eq(db.schemaVersion, BRL.DB.SCHEMA_VERSION)
     T.ok(db.sessions["RS-old"], "보관 세션 복원")
     T.ok(db.trades["TR-old"], "보관 거래 복원")
     T.ok(BRL.Util.Contains(db.tradeOrder, "TR-old"), "거래 순서 목록에 추가")

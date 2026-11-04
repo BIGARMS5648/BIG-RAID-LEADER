@@ -122,8 +122,8 @@ function Diag:Run()
         add("info", "활성 세션 없음")
     else
         local sum = BRL.Ledger:Summary(session.id)
-        add("info", string.format("%s · 경매 %s · 수금 %s · 미수 %s · 장부 잔액 %s", session.name or session.id, Money.Format(sum.totalAwarded),
-            Money.Format(sum.collected), Money.Format(sum.outstanding), Money.Format(sum.balance)))
+        add("info", string.format("%s · 경매 %s · 수금 %s · 장부 잔액 %s", session.name or session.id, Money.Format(sum.totalAwarded),
+            Money.Format(sum.collected), Money.Format(sum.balance)))
         local active = BRL.Auctions:GetActive()
         if active and active.sessionId == session.id and not BRL.Auctions.ticker then
             add("warn", "진행 중 경매가 있지만 타이머가 멈춰 있음 (경매 화면에서 낙찰/유찰/취소)")
