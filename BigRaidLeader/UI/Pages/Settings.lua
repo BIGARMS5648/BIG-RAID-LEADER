@@ -1,4 +1,4 @@
--- BIG RAID LEADER - 설정 / 데이터 관리 / 세션 보관 / 진단
+-- BIG RAID LEADER - 설정 / 데이터 관리 / 진단
 local _, BRL = ...
 local T, W, L, U, Money, API = BRL.Theme, BRL.Widgets, BRL.L, BRL.Util, BRL.Money, BRL.API
 local UI, D = BRL.UI, BRL.Dialogs
@@ -8,7 +8,7 @@ local function build(page)
     page.panels = {}
     page.tabs = W.Tabs(page, {
         { key = "general", text = "일반/거래", width = 100 }, { key = "auction", text = "경매/정산", width = 100 },
-        { key = "data", text = "데이터 관리", width = 100 }, { key = "archive", text = "세션 보관", width = 90 },
+        { key = "data", text = "데이터 관리", width = 100 },
         { key = "compat", text = "진단", width = 70 },
     }, function(key)
         page.tab = key
@@ -42,9 +42,8 @@ local function build(page)
     check(pg, 8, 24, "거래 자동 기록", "trade.autoRecord", { "거래 창 이벤트를 추적해 완료가 확인된 거래를 기록합니다." })
     check(pg, 8, 48, "거래 완료 화면 알림", "trade.notifyScreen")
     check(pg, 8, 72, "채팅창 거래 기록 출력", "trade.notifyChat")
-    check(pg, 8, 96, "거래 결과 귓속말 (상대방에게)", "trade.whisperPartner", { "거래 완료 시 상대방에게 거래 내역을 귓속말로 보냅니다.", "기본값: 꺼짐" })
-    check(pg, 8, 120, "거래 직후 목적 분류 창", "trade.completionPopup")
-    check(pg, 8, 144, "경매/분배 연결 제안 (자동 확정 없음)", "trade.suggestLinks")
+    check(pg, 8, 96, "거래 직후 목적 분류 창", "trade.completionPopup")
+    check(pg, 8, 120, "경매/분배 연결 제안 (자동 확정 없음)", "trade.suggestLinks")
     check(pg, 230, 24, "거래 창 옆 정보 패널", "trade.assistPanel", { "거래 상대의 미납 낙찰금/미지급 분배금과 거래 창 금액을 비교해 보여줍니다.", "[분배금 입력]은 골드 칸만 채우며 수락은 직접 해야 합니다." })
     local s2 = W.Section(pg, "인터페이스")
     s2:SetPoint("TOPLEFT", 4, -180)
@@ -297,94 +296,7 @@ local function build(page)
     dn:SetPoint("TOPLEFT", 4, -406)
     T.SetTextColor(dn, "muted")
     W.Button(pd, "공유 문자열 가져오기", 140, 22, function() BRL.UIActions.ShareImport() end,
-        { tooltip = { "공략/편성/전술표/징표/메모/목표 구성 공유 문자열을 가져옵니다.", "종류는 자동으로 판별합니다." } }):SetPoint("TOPLEFT", 4, -446)
-
-    -- 세션 보관
-    local pv = panel("archive")
-    pv.info = W.Paragraph(pv, "", 880, 12)
-    pv.info:SetPoint("TOPLEFT", 4, 0)
-    pv.list = W.List(pv, {
-        columns = {
-            { title = "세션", width = 0, render = function(e) return e.name or e.id end },
-            { title = "진행일", width = 90, render = function(e) return e.startedAt and U.FormatDate(e.startedAt) or "-" end },
-            { title = "상태", width = 70, render = function(e)
-                if e.archived then return T.Color("blue", "보관됨") end
-                if e.active then return T.Color("green", "활성") end
-                return e.status == "closed" and "종료" or T.Color("yellow", "진행")
-            end },
-            { title = "경매 총액", width = 100, align = "RIGHT", render = function(e) return Money.Format(e.total or 0, { goldOnly = true }) end },
-            { title = "기록", width = 110, align = "RIGHT", render = function(e)
-                if e.archived then return e.recordCount .. "건 · " .. U.FormatNumber(e.size) .. "B" end
-                return "-"
-            end },
-            { title = "보관 가능", width = 240, render = function(e)
-                if e.archived then return T.Color("muted", U.FormatDate(e.archivedAt) .. " 보관") end
-                return e.canArchive and T.Color("green", "가능") or T.Color("muted", tostring(e.reason))
-            end },
-        },
-    })
-    pv.list:SetPoint("TOPLEFT", 4, -44)
-    pv.list:SetSize(880, 270)
-    local bv = CreateFrame("Frame", nil, pv)
-    bv:SetPoint("TOPLEFT", 4, -320)
-    bv:SetSize(880, 26)
-    local fv = W.Flow(bv, 0, 1, 4)
-    local function selected() return pv.list:GetSelected() end
-    fv:Add(W.Button(bv, "선택 세션 보관", 104, 24, function()
-        local e = selected()
-        if not e or e.archived then return end
-        D.Confirm("'" .. tostring(e.name) .. "' 세션을 보관할까요?\n보관된 기록은 목록/계산에서 빠지며 언제든 복원할 수 있습니다.", function()
-            BRL.Migration:CreateBackup("세션 보관 전 자동 백업")
-            local ok, err = BRL.Archive:ArchiveSession(e.id)
-            D.Message(ok and ("보관 완료: " .. ok.recordCount .. "건, " .. U.FormatNumber(ok.size) .. "B") or ("보관 실패: " .. tostring(err)))
-        end)
-    end, { kind = "primary", perm = "finance.edit" }))
-    fv:Add(W.Button(bv, "복원", 60, 24, function()
-        local e = selected()
-        if not e or not e.archived then return end
-        local ok, err = BRL.Archive:Restore(e.id)
-        D.Message(ok and "복원 완료" or ("복원 실패: " .. tostring(err)))
-    end, { perm = "finance.edit" }))
-    fv:Add(W.Button(bv, "검증", 60, 24, function()
-        local e = selected()
-        if not e or not e.archived then return end
-        local ok, err = BRL.Archive:Verify(e.id)
-        D.Message(ok and "보관 기록 정상 (체크섬 일치)" or ("보관 기록 이상: " .. tostring(err)))
-    end))
-    fv:Add(W.Button(bv, "내보내기", 70, 24, function()
-        local e = selected()
-        if not e or not e.archived then return end
-        D.CopyText("보관 세션 내보내기 - " .. tostring(e.name), BRL.Archive:Export(e.id))
-    end))
-    fv:Add(W.Button(bv, "보관 기록 삭제", 100, 24, function()
-        local e = selected()
-        if not e or not e.archived then return end
-        D.Confirm("보관된 '" .. tostring(e.name) .. "' 기록을 완전히 삭제할까요? 되돌릴 수 없습니다.\n(먼저 [내보내기]로 문자열을 보관해 두는 것을 권장합니다)", function()
-            BRL.Archive:Delete(e.id)
-        end, { danger = true, title = "보관 기록 삭제" })
-    end, { kind = "danger", perm = "finance.edit" }))
-    local av = W.Section(pv, "일괄 보관")
-    av:SetPoint("TOPLEFT", 4, -360)
-    local dvl = W.Label(pv, "보관 기준(일)", 12, "muted")
-    dvl:SetPoint("TOPLEFT", 8, -388)
-    pv.days = W.EditBox(pv, 50, 22, { numeric = true, onCommit = function(t)
-        BRL.DB:SetSetting("archive.days", math.max(1, math.min(3650, tonumber(t) or 30)))
-    end })
-    pv.days:SetPoint("TOPLEFT", 100, -384)
-    W.Button(pv, "오래된 세션 일괄 보관", 150, 24, function()
-        local n = #BRL.Archive:Candidates()
-        if n == 0 then D.Message("보관 기준을 넘긴 종료 세션이 없습니다.") return end
-        D.Confirm(n .. "개 세션을 보관할까요? (보관 전 자동 백업)", function()
-            local done, skipped = BRL.Archive:ArchiveOld()
-            local lines = { "보관 완료: " .. done .. "개" }
-            for _, sk in ipairs(skipped) do lines[#lines + 1] = "보관 안 함: " .. tostring(sk.name) .. " - " .. tostring(sk.reason) end
-            D.Message(table.concat(lines, "\n"))
-        end)
-    end, { perm = "finance.edit" }):SetPoint("TOPLEFT", 164, -383)
-    check(pv, 330, 386, "접속 시 자동 보관 (그룹 밖일 때)", "archive.auto", { "보관 기준을 넘긴 종료 세션을 접속 10초 후 자동으로 보관합니다.", "미수금/미지급/교차 연결이 있는 세션은 건너뜁니다." })
-    local vn = W.Paragraph(pv, "보관은 세션의 경매·입찰·낙찰·거래·장부·정산·분배·보고서·진행 기록을 하나의 문자열(체크섬 포함)로 묶습니다. 다른 세션 거래와 연결된 기록이 있거나 미수금/미지급이 남은 세션, 활성 세션은 보관하지 않습니다. 보관된 세션의 구매자 기록은 경매 > 구매자 기록에 계속 반영됩니다.", 880, 11)
-    vn:SetPoint("TOPLEFT", 4, -420)
-    T.SetTextColor(vn, "muted")
+        { tooltip = { "공략/파티 편성/전술표 공유 문자열을 가져옵니다.", "종류는 자동으로 판별합니다." } }):SetPoint("TOPLEFT", 4, -446)
 
     -- 진단 (자가 진단 + API/이벤트 지원 + 무결성 + 오류 기록 통합)
     local pc = panel("compat")
@@ -459,24 +371,6 @@ local function refresh(page)
         end
         pd.info:SetText(string.format("저장 스키마 v%d · 애드온 v%s · 레코드: %s · 감사 로그 %d건\n백업은 하루 1회 자동 생성되며 최대 %d개까지 보관합니다. 정산 확정/데이터 복구/마이그레이션 전에도 자동 백업됩니다.",
             BRL.db.schemaVersion or 0, BRL.VERSION, table.concat(counts, ", "), #BRL.db.audit, BRL.Migration.MAX_BACKUPS))
-    elseif page.tab == "archive" then
-        local pv = page.panels.archive
-        if not pv.days.edit.hasFocus then pv.days:SetText(tostring(BRL.acct.archive.days or 30)) end
-        local rows = {}
-        for _, s in ipairs(BRL.Session:List()) do
-            local ok, why = BRL.Archive:CanArchive(s.id)
-            rows[#rows + 1] = { id = s.id, name = s.name, startedAt = s.startedAt, status = s.status, active = BRL.db.activeSessionId == s.id,
-                total = BRL.Ledger:Summary(s.id).totalAwarded, canArchive = ok, reason = why }
-        end
-        local size, count = 0, 0
-        for _, a in ipairs(BRL.Archive:List()) do
-            rows[#rows + 1] = { id = a.id, name = a.name, startedAt = a.startedAt, archived = true, archivedAt = a.archivedAt,
-                total = a.summary and a.summary.total or 0, recordCount = a.recordCount or 0, size = a.size or 0 }
-            size, count = size + (a.size or 0), count + 1
-        end
-        pv.list:SetData(rows)
-        pv.info:SetText(string.format("세션 %d개 · 보관됨 %d개 (%sB) · 기준 %d일 지난 종료 세션 %d개 보관 가능",
-            #BRL.Session:List(), count, U.FormatNumber(size), BRL.acct.archive.days or 30, #BRL.Archive:Candidates()))
     elseif page.tab == "compat" then
         local pc = page.panels.compat
         pc.build:SetText("클라이언트: " .. API.GetBuildText())

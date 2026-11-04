@@ -411,7 +411,6 @@ function BP:ApplyPrep(bossKey)
     local assigned = 0
     for _, d in ipairs(BRL.Roles.DUTIES) do assigned = assigned + #BRL.Roles:GetAssignees(bossKey, d.key) end
     res.duties = assigned
-    res.markers = U.Count(BRL.Command:GetMarkerPlan(bossKey))
     res.required = #BRL.Buffs:RequiredList(bossKey)
     res.warnings = BRL.Roles:Validate(bossKey)
     DB:Audit("boss.prep", "boss", bossKey, { groupTemplate = res.groupTemplate })
@@ -423,7 +422,7 @@ end
 function BP:PrepLines(res)
     local lines = { "[" .. res.name .. " 준비 적용]" }
     lines[#lines + 1] = res.groupTemplate and ("편성: '" .. res.groupTemplate .. "' 불러옴 (실제 파티 적용은 확인 후)") or "편성: 보스 편성 템플릿 없음 (편성 화면에서 '보스:" .. res.name .. "' 이름으로 저장하면 자동으로 불러옵니다)"
-    lines[#lines + 1] = string.format("전술 임무 %d건 · 징표 규칙 %d개 · 필수 버프 %d종", res.duties, res.markers, res.required)
+    lines[#lines + 1] = string.format("전술 임무 %d건 · 필수 버프 %d종", res.duties, res.required)
     for _, w in ipairs(res.warnings or {}) do lines[#lines + 1] = "확인: " .. w end
     return lines
 end

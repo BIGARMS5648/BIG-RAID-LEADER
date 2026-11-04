@@ -44,13 +44,11 @@ Modules\Campsites.lua
 Modules\Command.lua
 Modules\BossPlans.lua
 Modules\RaidProgress.lua
-Modules\LootDistribution.lua
 Modules\Statistics.lua
 Modules\Recruitment.lua
 Modules\Composition.lua
 Modules\CombatPrep.lua
 Modules\Diagnostics.lua
-Modules\Archive.lua
 Modules\Share.lua
 UI\Theme.lua
 UI\Widgets.lua
@@ -76,6 +74,5 @@ UI\Pages\Auction.lua
 UI\Pages\Trades.lua
 UI\Pages\Ledger.lua
 UI\Pages\Settlement.lua
-UI\Pages\Stats.lua
 UI\Pages\Settings.lua
 Core\Init.lua

@@ -101,8 +101,6 @@ function Diag:Run()
         counts[#counts + 1] = name .. " " .. U.Count(db[name] or {})
     end
     add("info", "레코드: " .. table.concat(counts, ", "))
-    local archives = BRL.Archive and BRL.Archive:List() or {}
-    if #archives > 0 then add("info", "보관된 세션 " .. #archives .. "개") end
     local issues = BRL.Migration:Validate()
     local errs, warns = 0, 0
     for _, i in ipairs(issues) do

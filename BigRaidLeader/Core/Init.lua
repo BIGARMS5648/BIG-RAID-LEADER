@@ -36,7 +36,7 @@ BRL.Events:Register("PLAYER_LOGIN", Init, onLogin)
 local HELP = {
     "|cffd4af37BIG RAID LEADER|r 명령어",
     "/brl - 메인 창 열기/닫기",
-    "/brl <메뉴> - 메뉴 바로 열기 (대시보드, 모집, 공대원, 편성, 역할, 준비, 버프, 야영지, 지휘, 공략, 경매, 거래, 장부, 정산, 통계, 설정)",
+    "/brl <메뉴> - 메뉴 바로 열기 (대시보드, 모집, 공대원, 편성, 역할, 준비, 버프, 야영지, 지휘, 공략, 경매, 거래, 장부, 정산, 설정)",
     "/brl 경매 [아이템링크] [시작가] - 경매 등록",
     "/brl 입찰 <이름> <금액> - 진행 중 경매에 수동 입찰",
     "/brl 카운트 - 경매 카운트(5초) / /brl 카운트취소 - 카운트 취소",
@@ -44,7 +44,7 @@ local HELP = {
     "/brl 전투준비 - 도핑(음식/영약/비약) 점검 / /brl 구성 [20|40] - 구성 분석·추천 직업",
     "/brl 세션 [이름] - 새 공격대 세션",
     "/brl 백업 - 데이터 백업 / /brl 진단 - 자가 진단 (API·무결성·오류 기록, 문제 보고용)",
-    "/brl 추적 - 최근 거래 이벤트 추적 / /brl 보관 - 오래된 종료 세션 보관",
+    "/brl 추적 - 최근 거래 이벤트 추적",
     "/brl hud - 공대장 HUD 열기/닫기 / /brl 판정 - 풀링 판정 / /brl 독촉 - 미수금 독촉 귓속말",
     "/brl 복구 - 전멸 복구 점검 (사망자·영혼석·재버프·도핑) / /brl 보스준비 - 현재 보스 준비 적용",
 }
@@ -63,7 +63,6 @@ local PAGE_ALIASES = {
     ["거래"] = "trades", trades = "trades", trade = "trades",
     ["장부"] = "ledger", ledger = "ledger",
     ["정산"] = "settlement", settlement = "settlement",
-    ["통계"] = "stats", stats = "stats",
     ["설정"] = "settings", settings = "settings", config = "settings",
 }
 
@@ -167,14 +166,6 @@ function Init:Slash(msg)
     end
     if cmd == "추적" or lower == "trace" then
         if BRL.UIActions then BRL.UIActions.TradeTraces() end
-        return
-    end
-    if cmd == "보관" or lower == "archive" then
-        local n = #BRL.Archive:Candidates()
-        if n == 0 then BRL:Print("보관할 세션이 없습니다 (%d일 이상 지난 종료 세션).", BRL.acct.archive.days or 30) return end
-        local done, skipped = BRL.Archive:ArchiveOld()
-        BRL:Print("세션 %d개 보관 완료", done)
-        for _, sk in ipairs(skipped) do BRL:Print(" - 보관 안 함: %s (%s)", tostring(sk.name), tostring(sk.reason)) end
         return
     end
     if lower == "debug" then

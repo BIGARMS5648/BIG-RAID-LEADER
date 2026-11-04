@@ -300,9 +300,6 @@ local function buildAnalysis(page, host)
     f:Add(W.Button(f.parent, "기본값", 60, 24, function()
         D.Confirm("목표 직업/역할 구성을 기본값으로 되돌릴까요?", function() Comp:ResetTarget(page.aSize or BRL.Recruitment:GetCurrent().size) end)
     end, { perm = "raid.plan" }))
-    f:Add(W.Button(f.parent, "공유", 50, 24, function()
-        BRL.UIActions.ShareMenu("comp", page.aSize or BRL.Recruitment:GetCurrent().size, "목표 구성")
-    end))
 end
 
 local function refreshAnalysis(page)

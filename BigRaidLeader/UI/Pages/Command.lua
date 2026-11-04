@@ -11,7 +11,6 @@ local function build(page)
     page.panels = {}
     page.tabs = W.Tabs(page, {
         { key = "cmd", text = "지휘 명령", width = 100 },
-        { key = "marker", text = "징표", width = 80 },
         { key = "notes", text = "전술 메모", width = 100 },
     }, function(key)
         page.tab = key
@@ -58,6 +57,8 @@ local function build(page)
     pc.breakMin = f1:Add(W.EditBox(pc, 40, 22, { numeric = true }))
     pc.breakMin:SetText(tostring(BRL.acct.command.breakMinutes))
     f1:Add(W.Button(pc, "풀링 판정", 76, 22, function() A.ShowPullCheck() end, { tooltip = { "준비 확인 · 사망/부재 · 도핑 · 역할을 종합해 풀링 가능 여부를 판정합니다." } }))
+    f1:Add(W.Button(pc, "징표 바 열기/닫기", 120, 22, function() BRL.MarkerBar:Toggle() end,
+        { tooltip = { "징표 지정은 게임 보호 정책상 징표 바 버튼(직접 클릭)으로만 할 수 있습니다.", "전투 중에는 열고 닫을 수 없으니 미리 열어 두세요." } }))
     pc.status = f1:Add(W.Label(pc, "", 12, "yellow"), 300)
 
     local s2 = W.Section(pc, "커스텀 공지")
@@ -100,52 +101,6 @@ local function build(page)
     local hint = W.Label(f3.parent, "단축키: 게임 메뉴 > 키 설정 > 애드온 > BIG RAID LEADER (준비 확인/풀링/취소)", 11, "muted")
     f3:Add(hint, 460)
 
-    -- 징표
-    local pm = panel("marker")
-    local sm = W.Section(pm, "징표 규칙 (징표별 담당 몬스터 · 차단 · 군중제어)")
-    sm:SetPoint("TOPLEFT", 4, 0)
-    pm.list = W.List(pm, {
-        columns = {
-            { title = "징표", width = 110, render = function(i)
-                return "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_" .. i .. ":14|t " .. Cmd:MarkerName(i)
-            end },
-            { title = "담당 몬스터", width = 220, render = function(i) local r = Cmd:GetMarkerPlan(page.planKey)[i] return r and r.target or "" end },
-            { title = "차단 담당", width = 110, render = function(i) local r = Cmd:GetMarkerPlan(page.planKey)[i] return r and r.interrupt and API.ShortName(r.interrupt) or "" end },
-            { title = "군중제어 담당", width = 110, render = function(i) local r = Cmd:GetMarkerPlan(page.planKey)[i] return r and r.cc and API.ShortName(r.cc) or "" end },
-            { title = "메모", width = 0, render = function(i) local r = Cmd:GetMarkerPlan(page.planKey)[i] return r and r.note or "" end },
-        },
-        onDoubleClick = function(i) pm.edit(i) end,
-    })
-    pm.list:SetPoint("TOPLEFT", 4, -24)
-    pm.list:SetPoint("BOTTOMRIGHT", -4, 70)
-    pm.edit = function(i)
-        local r = Cmd:GetMarkerPlan(page.planKey)[i] or {}
-        D.Input(Cmd:MarkerName(i) .. " 규칙", {
-            { key = "target", label = "담당 몬스터", type = "text", default = r.target },
-            { key = "interrupt", label = "차단 담당", type = "dropdown", items = A.MemberItems(true), default = r.interrupt or false },
-            { key = "cc", label = "군중제어 담당", type = "dropdown", items = A.MemberItems(true), default = r.cc or false },
-            { key = "note", label = "메모", type = "text", default = r.note },
-        }, function(v)
-            Cmd:SetMarkerRule(page.planKey, i, "target", v.target ~= "" and v.target or nil)
-            Cmd:SetMarkerRule(page.planKey, i, "interrupt", v.interrupt or nil)
-            Cmd:SetMarkerRule(page.planKey, i, "cc", v.cc or nil)
-            return Cmd:SetMarkerRule(page.planKey, i, "note", v.note ~= "" and v.note or nil)
-        end)
-    end
-    pm.note = W.Paragraph(pm, "징표 지정은 게임 보호 정책상 [징표 바]의 버튼(직접 클릭)으로만 할 수 있습니다. 징표 바는 전투 전에 열어 두세요. 공격대장/부공대장만 지정 가능합니다.", 880, 11)
-    pm.note:SetPoint("BOTTOMLEFT", 4, 36)
-    T.SetTextColor(pm.note, "muted")
-    local _, fm = UI.BottomBar(pm)
-    fm:Add(W.Button(fm.parent, "징표 바 열기/닫기", 130, 24, function() BRL.MarkerBar:Toggle() end, { kind = "primary" }))
-    fm:Add(W.Button(fm.parent, "규칙 편집", 80, 24, function() local i = pm.list:GetSelected() if i then pm.edit(i) end end, { perm = "raid.plan" }))
-    fm:Add(W.Button(fm.parent, "징표 규칙 채팅 출력", 140, 24, function() A.SendLines(Cmd:MarkerLines(page.planKey), "징표 규칙 출력") end))
-    fm:Add(W.Button(fm.parent, "기본 규칙 복사", 110, 24, function()
-        if page.planKey == "default" then return end
-        Cmd:CopyMarkerPlan("default", page.planKey)
-    end, { perm = "raid.plan", tooltip = { "기본 징표 규칙을 선택한 보스 템플릿으로 복사" } }))
-    fm:Add(W.Button(fm.parent, "규칙 초기화", 90, 24, function() D.Confirm("징표 규칙을 초기화할까요?", function() Cmd:ClearMarkerPlan(page.planKey) end) end, { perm = "raid.plan" }))
-    fm:Add(W.Button(fm.parent, "공유", 50, 24, function() A.ShareMenu("markers", page.planKey) end))
-
     -- 전술 메모
     local pn = panel("notes")
     page.noteCat = "shared"
@@ -177,8 +132,8 @@ local function build(page)
         UI:RequestRefresh()
     end, { kind = "primary" }))
     fn:Add(W.Button(fn.parent, "채팅 출력", 80, 24, function() A.SendLines(Cmd:NoteLines(page.planKey, page.noteCat), "전술 메모 출력") end))
-    fn:Add(W.Button(fn.parent, "공유", 60, 24, function() A.ShareMenu("notes", page.planKey, "전술 메모", function() return pn.area:GetText() end) end,
-        { tooltip = { "텍스트로 복사(디스코드 등) / 공유 문자열 내보내기·가져오기" } }))
+    fn:Add(W.Button(fn.parent, "텍스트 복사", 84, 24, function() D.CopyText("전술 메모", pn.area:GetText()) end,
+        { tooltip = { "디스코드/메모장에 붙여넣을 수 있게 복사합니다." } }))
     local tip = W.Label(fn.parent, "★ 또는 ! 로 시작하는 줄은 강조 표시됩니다.", 11, "muted")
     fn:Add(tip, 300)
 
@@ -193,8 +148,6 @@ local function refresh(page)
         pc.saved:SetData(Cmd:SavedCommands(), true)
         local rem = Cmd:BreakRemaining()
         pc.status:SetText(rem and ("휴식 중: " .. U.FormatDuration(rem) .. " 남음") or (API.InCombat() and "전투 중: 풀링/준비 확인 불가" or ""))
-    elseif page.tab == "marker" then
-        page.panels.marker.list:SetData(Cmd.MARKER_ORDER, true)
     else
         local pn = page.panels.notes
         if not pn.area.edit:HasFocus() then pn.area:SetText(Cmd:GetNote(page.planKey, page.noteCat)) end

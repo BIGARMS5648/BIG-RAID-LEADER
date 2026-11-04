@@ -51,34 +51,6 @@ function Ready:OnReadyFinished()
     changed()
 end
 
--- 수동 점검 (세션별)
-local function manualStore()
-    local sid = (BRL.Session:GetActive() or {}).id or "default"
-    local store = BRL.db.raidOps.readyManual
-    store[sid] = store[sid] or {}
-    return store[sid]
-end
-
-function Ready:GetManual(key, item)
-    local m = manualStore()[key]
-    return m and m[item] or false
-end
-
-function Ready:SetManual(key, item, value)
-    if not BRL.Perm:Require("raid.command") then return false end
-    local store = manualStore()
-    store[key] = store[key] or {}
-    store[key][item] = value and true or nil
-    changed()
-    return true
-end
-
-function Ready:ResetManual()
-    local sid = (BRL.Session:GetActive() or {}).id or "default"
-    BRL.db.raidOps.readyManual[sid] = {}
-    changed()
-end
-
 local STATUS_LABEL = {
     ready = "준비 완료", notready = "준비 안 됨", waiting = "응답 대기", noresponse = "미응답",
     offline = "오프라인", unknown = "확인 불가",
@@ -96,11 +68,9 @@ function Ready:Rows()
         if not m.online then row.ready = "offline" end
         row.dead = m.dead
         row.inInstance = (m.zone == nil) or (myZone ~= nil and m.zone == myZone)
-        -- 내구도는 게임 API로 본인 것만 확인 가능 (다른 공대원은 수동 점검)
+        -- 내구도는 게임 API로 본인 것만 확인 가능
         if m.key == BRL.playerKey then row.durability = API.GetOwnDurability() end
         row.lowDurability = row.durability ~= nil and row.durability < minDur
-        row.manual = {}
-        for _, item in ipairs(BRL.Data.ReadyManualItems) do row.manual[item.key] = self:GetManual(m.key, item.key) end
         rows[#rows + 1] = row
     end
     return rows

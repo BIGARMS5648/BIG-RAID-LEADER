@@ -385,18 +385,3 @@ T.test("18. 기록 취소/복원 + 백업 복구", function()
     T.eq(#BRL.Migration:Validate(), 0, "무결성")
 end)
 
-T.test("거래 완료 귓속말 (설정 시)", function()
-    T.fresh({ group = T.raid(5) })
-    BRL.acct.trade.whisperPartner = true
-    open("대원2")
-    addItem("player", 1, 19019, "천둥분노")
-    setTarget(2500 * G)
-    accept(1, 1)
-    complete()
-    M.Advance(3)
-    local found = false
-    for _, s in ipairs(M.sent) do
-        if s.chatType == "WHISPER" and s.msg:find("받은 골드: 2,500골드") then found = true end
-    end
-    T.ok(found, "귓속말 전송")
-end)

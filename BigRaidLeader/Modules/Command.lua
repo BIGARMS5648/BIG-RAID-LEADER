@@ -1,4 +1,4 @@
--- BIG RAID LEADER - 공격대 지휘 / 징표 / 전술 메모
+-- BIG RAID LEADER - 공격대 지휘 / 전술 메모
 -- * SetRaidTarget 은 12.x 부터 보호 함수 → 징표 지정은 보안 버튼(SecureActionButton)으로만 수행 (UI 모듈)
 -- * 풀링 카운트다운: C_PartyInfo.DoCountdown (전투 중 호출 불가) → 미지원 시 채팅 카운트다운 대체
 local _, BRL = ...
@@ -6,7 +6,6 @@ local U, API = BRL.Util, BRL.API
 
 local Cmd = BRL:NewModule("Command")
 
-Cmd.MARKER_CHAT = { "{rt1}", "{rt2}", "{rt3}", "{rt4}", "{rt5}", "{rt6}", "{rt7}", "{rt8}" }
 Cmd.MARKER_ORDER = { 8, 7, 1, 2, 3, 4, 5, 6 } -- 해골, 엑스, 별, 동그라미, 다이아, 세모, 달, 네모
 
 Cmd.pullTimers = {}
@@ -138,57 +137,9 @@ function Cmd:RunCommand(index)
 end
 
 ---------------------------------------------------------------------------
--- 징표 규칙 (징표별 담당 몬스터/차단/군중제어)
+-- 징표 이름 (징표 바)
 ---------------------------------------------------------------------------
 function Cmd:MarkerName(i) return BRL.L["MARKER_" .. i] end
-
-function Cmd:GetMarkerPlan(planKey)
-    local t = ops().markerTemplates
-    planKey = planKey or "default"
-    t[planKey] = t[planKey] or {}
-    return t[planKey]
-end
-
-function Cmd:SetMarkerRule(planKey, marker, field, value)
-    if not BRL.Perm:Require("raid.plan") then return false end
-    local plan = self:GetMarkerPlan(planKey)
-    plan[marker] = plan[marker] or {}
-    plan[marker][field] = value
-    changed()
-    return true
-end
-
-function Cmd:ClearMarkerPlan(planKey)
-    if not BRL.Perm:Require("raid.plan") then return false end
-    ops().markerTemplates[planKey or "default"] = {}
-    changed()
-    return true
-end
-
-function Cmd:CopyMarkerPlan(fromKey, toKey)
-    if not BRL.Perm:Require("raid.plan") then return false end
-    ops().markerTemplates[toKey] = U.DeepCopy(self:GetMarkerPlan(fromKey))
-    changed()
-    return true
-end
-
-function Cmd:MarkerLines(planKey)
-    local plan = self:GetMarkerPlan(planKey)
-    local lines = { "[BIG RAID LEADER 징표 규칙]" }
-    for _, i in ipairs(self.MARKER_ORDER) do
-        local r = plan[i]
-        if r and (r.target or r.interrupt or r.cc or r.note) then
-            local parts = { self.MARKER_CHAT[i] .. " " .. self:MarkerName(i) }
-            if r.target and r.target ~= "" then parts[#parts + 1] = "대상: " .. r.target end
-            if r.interrupt then parts[#parts + 1] = "차단: " .. API.ShortName(r.interrupt) end
-            if r.cc then parts[#parts + 1] = "제어: " .. API.ShortName(r.cc) end
-            if r.note and r.note ~= "" then parts[#parts + 1] = r.note end
-            lines[#lines + 1] = table.concat(parts, " / ")
-        end
-    end
-    if #lines == 1 then lines[#lines + 1] = "징표 규칙 없음" end
-    return lines
-end
 
 ---------------------------------------------------------------------------
 -- 전술 메모

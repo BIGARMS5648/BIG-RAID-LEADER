@@ -46,16 +46,6 @@ BRL.Data.ConsumableGroups = {
     { key = "PROTECTION", name = "보호 물약", manual = true },
 }
 
--- 준비 확인 수동 점검 항목 (API로 확인할 수 없는 항목)
-BRL.Data.ReadyManualItems = {
-    { key = "ENCHANT", name = "마법부여" },
-    { key = "RESIST", name = "저항 장비" },
-    { key = "REAGENT", name = "주요 시약" },
-    { key = "AMMO", name = "탄약/직업 자원" },
-    { key = "POTION", name = "전투 물약" },
-    { key = "GEAR", name = "장비 착용" },
-}
-
 -- 포에버 야영지(캠핑) 시설. 각 시설 효과는 대응 직업 버프와 중복 적용되지 않음(대체 관계).
 -- 출처: 2026년 10월 베타 기준 커뮤니티 가이드. 한글 명칭은 비공식 번역이며 수치는 변경될 수 있음.
 BRL.Data.CampFacilities = {

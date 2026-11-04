@@ -12,7 +12,7 @@ local TILES = {
     { key = "missing", label = "부족한 역할", page = "recruit" },
     { key = "ready", label = "준비 확인", page = "ready" },
     { key = "boss", label = "현재 보스", page = "boss" },
-    { key = "progress", label = "보스 진행", page = "stats" },
+    { key = "progress", label = "보스 진행", page = "boss" },
     { key = "auction", label = "경매 총액", page = "auction" },
     { key = "collected", label = "실제 수금액", page = "ledger" },
     { key = "outstanding", label = "미수금", page = "ledger" },
@@ -52,7 +52,8 @@ local function build(page)
         local ok, err = BRL.Auctions:StartNext()
         if not ok then BRL:Print(tostring(err)) end
     end, { perm = "finance.edit", kind = "primary" }))
-    flow:Add(W.Button(page, "정산 열기", 86, 26, function() UI:Open("settlement") end))
+    flow:Add(W.Button(page, "지난 세션", 86, 26, function() BRL.UIActions.SessionHistory() end,
+        { tooltip = { "지난 공격대 세션 목록 (경매 총액 · 수금 · 정산 상태)", "선택하면 그 세션으로 전환합니다." } }))
     flow:Add(W.Button(page, "징표 바", 76, 26, function() BRL.MarkerBar:Toggle() end))
     flow:Add(W.Button(page, "새 세션", 76, 26, function() UI:PromptNewSession() end, { perm = "finance.edit" }))
     flow:Add(W.Button(page, "풀링 판정", 80, 26, function() BRL.UIActions.ShowPullCheck() end))

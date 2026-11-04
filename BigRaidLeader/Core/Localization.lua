@@ -18,7 +18,6 @@ L.MENU_AUCTION = "전리품 경매"
 L.MENU_TRADES = "거래 로그"
 L.MENU_LEDGER = "골드 장부"
 L.MENU_SETTLEMENT = "골드 정산"
-L.MENU_STATS = "공격대 통계"
 L.MENU_SETTINGS = "설정"
 
 -- 권한

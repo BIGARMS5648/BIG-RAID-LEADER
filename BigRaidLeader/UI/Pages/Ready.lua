@@ -2,7 +2,7 @@
 -- (준비 상태 화면은 버프 및 야영지 화면과 합쳐 "전투 준비" 메뉴의 첫 탭이 되었다. 화면 등록은 Buffs.lua)
 local _, BRL = ...
 local T, W = BRL.Theme, BRL.Widgets
-local UI, D = BRL.UI, BRL.Dialogs
+local UI = BRL.UI
 
 local Ready = BRL.Readiness
 
@@ -36,44 +36,22 @@ function P.Build(panel)
             return T.Color("red", table.concat(parts, ","))
         end },
     }
-    for _, item in ipairs(BRL.Data.ReadyManualItems) do
-        cols[#cols + 1] = { title = item.name, width = 0, align = "CENTER", render = function(r)
-            return r.manual[item.key] and T.Color("green", "✔") or T.Color("muted", "·")
-        end }
-    end
     panel.list = W.List(panel, {
         columns = cols,
-        onDoubleClick = function(r) panel.manualCheck(r) end,
-        tooltip = function(r) return r.member.short, { "더블클릭: 수동 점검 항목 체크", "내구도는 게임 API로 본인 장비만 확인할 수 있습니다" } end,
+        tooltip = function(r) return r.member.short, { "내구도는 게임 API로 본인 장비만 확인할 수 있습니다" } end,
     })
     panel.list:SetPoint("TOPLEFT", 4, -20)
     panel.list:SetPoint("BOTTOMRIGHT", -4, 70)
-    panel.note = W.Paragraph(panel, "· 마법부여/저항 장비/시약/탄약/물약은 게임 API로 다른 공대원의 상태를 확인할 수 없어 수동 점검 대상입니다. 음식/영약/비약은 [전투 준비(도핑)]으로 점검합니다.", 880, 11)
+    panel.note = W.Paragraph(panel, "· 음식/영약/비약/필수 버프는 [전투 준비(도핑)]으로 점검합니다. 마법부여/저항 장비/시약은 게임 API로 다른 공대원 상태를 볼 수 없어 표시하지 않습니다.", 880, 11)
     panel.note:SetPoint("BOTTOMLEFT", 4, 36)
     T.SetTextColor(panel.note, "muted")
 
-    panel.manualCheck = function(r)
-        local items = {}
-        for _, item in ipairs(BRL.Data.ReadyManualItems) do
-            items[#items + 1] = { value = item.key, text = (r.manual[item.key] and "|cff5cf272✔|r " or "· ") .. item.name }
-        end
-        D.Select(r.member.short .. " 수동 점검", items, function(key) Ready:SetManual(r.key, key, not r.manual[key]) end,
-            { description = "선택한 항목의 확인 여부를 전환합니다." })
-    end
 
     local _, f = UI.BottomBar(panel)
     f:Add(W.Button(f.parent, "준비 확인 시작", 110, 24, function() Ready:Start() end, { kind = "primary", perm = "raid.command" }))
     f:Add(W.Button(f.parent, "전투 준비(도핑)", 110, 24, function() BRL.CombatPrep:Run() end, { kind = "primary", tooltip = { "버프를 다시 읽어 음식/영약/비약/필수 버프 누락자를 보여줍니다." } }))
     f:Add(W.Button(f.parent, "풀링 판정", 80, 24, function() BRL.UIActions.ShowPullCheck() end))
     f:Add(W.Button(f.parent, "결과 채팅 출력", 110, 24, function() BRL.UIActions.SendLines(Ready:OutputLines(), "준비 상태 출력") end))
-    f:Add(W.Button(f.parent, "전원 항목 체크", 110, 24, function()
-        local items = {}
-        for _, item in ipairs(BRL.Data.ReadyManualItems) do items[#items + 1] = { value = item.key, text = item.name } end
-        D.Select("전원 확인 처리할 항목", items, function(key)
-            for _, r in ipairs(Ready:Rows()) do Ready:SetManual(r.key, key, true) end
-        end)
-    end, { perm = "raid.command" }))
-    f:Add(W.Button(f.parent, "수동 점검 초기화", 120, 24, function() D.Confirm("이번 세션의 수동 점검 기록을 초기화할까요?", function() Ready:ResetManual() end) end, { perm = "raid.command" }))
 end
 
 function P.Refresh(panel)

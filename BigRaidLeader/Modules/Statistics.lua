@@ -1,12 +1,8 @@
--- BIG RAID LEADER - 공격대 통계 (전투 진행 / 경매 / 정산)
+-- BIG RAID LEADER - 경매 통계 (지난 세션 목록 · 구매자 기록)
 local _, BRL = ...
 local DB = BRL.DB
 
 local Stats = BRL:NewModule("Statistics")
-
-function Stats:Combat(sessionId)
-    return BRL.RaidProgress:Summary(sessionId)
-end
 
 function Stats:Auction(sessionId)
     local s = { items = 0, awarded = 0, unsold = 0, cancelled = 0, queued = 0, total = 0, average = 0,
@@ -33,23 +29,6 @@ function Stats:Auction(sessionId)
     return s
 end
 
-function Stats:Settlement(sessionId)
-    local st = BRL.Settlement:ForSession(sessionId)
-    local sum = BRL.Ledger:Summary(sessionId)
-    local s = { collected = sum.collected, distributed = 0, deductions = 0, headcount = 0, average = 0,
-        paidCount = 0, unpaidCount = 0, unpaid = sum.unpaid, balance = sum.balance, status = st and st.status or nil }
-    if st then
-        local r = st.result or BRL.Settlement:Compute(st, "confirmed")
-        s.distributed = r.distributed
-        s.deductions = r.ledgerExpenses + r.operating + r.deductions + r.leaderFee + r.reserve
-        s.headcount = r.headcount
-        s.average = r.headcount > 0 and math.floor(r.distributed / r.headcount) or 0
-        local pay = BRL.Settlement:PaymentState(st.id)
-        s.paidCount, s.unpaidCount = pay.paidCount, pay.unpaidCount
-    end
-    return s
-end
-
 -- 전체 기간 요약 (세션 목록)
 function Stats:History()
     local out = {}
@@ -62,7 +41,7 @@ function Stats:History()
     return out
 end
 
--- 구매자 기록: 모든 세션(보관된 세션 포함)의 낙찰을 구매자별로 집계
+-- 구매자 기록: 모든 세션의 낙찰을 구매자별로 집계
 -- 반환 목록 항목: key, name, class, count, total, average, max, outstanding, sessions, last, items{name, amount, at, session, outstanding}
 function Stats:Buyers(query)
     local by = {}
@@ -94,12 +73,6 @@ function Stats:Buyers(query)
             local s = BRL.Session:Get(aw.sessionId)
             add(entry(aw.winnerKey, aw.winnerName, aw.winnerClass), aw.sessionId,
                 BRL.Util.StripColors(BRL.Util.ItemNameFromLink(aw.itemLink) or aw.itemName or "?"), aw.amount, aw.awardedAt, st.outstanding, s and s.name)
-        end
-    end
-    for _, a in ipairs(BRL.Archive and BRL.Archive:List() or {}) do
-        for key, b in pairs(a.summary and a.summary.buyers or {}) do
-            local e = entry(key, b.name)
-            for _, it in ipairs(b.items or {}) do add(e, a.id, it.name, it.amount, it.at, 0, (a.name or a.id) .. " (보관)") end
         end
     end
     local out = {}

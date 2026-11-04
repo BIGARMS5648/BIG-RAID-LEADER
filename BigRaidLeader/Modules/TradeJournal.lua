@@ -444,24 +444,6 @@ function J:Notify(tr)
             eff.received > 0 and ("+" .. Money.Format(eff.received, { goldOnly = eff.received >= 10000 })) or
             (eff.given > 0 and ("-" .. Money.Format(eff.given, { goldOnly = eff.given >= 10000 })) or "")))
     end
-    if cfg.whisperPartner and tr.partnerKey then
-        for _, line in ipairs(self:BuildWhisper(tr)) do
-            BRL.ChatOut:Send(line, "WHISPER", tr.partnerKey)
-        end
-    end
-end
-
-function J:BuildWhisper(tr)
-    local eff = self:Effective(tr)
-    local lines = { "[BIG RAID LEADER 거래 완료]", "상대방: " .. (tr.partnerName or "?") }
-    local items = {}
-    for _, it in ipairs(tr.playerItems or {}) do items[#items + 1] = (it.link or it.name) .. ((it.count or 1) > 1 and (" x" .. it.count) or "") end
-    for _, it in ipairs(tr.targetItems or {}) do items[#items + 1] = (it.link or it.name) .. ((it.count or 1) > 1 and (" x" .. it.count) or "") end
-    if #items > 0 then lines[#lines + 1] = "아이템: " .. table.concat(items, ", ") end
-    if eff.received > 0 then lines[#lines + 1] = "받은 골드: " .. Money.Format(eff.received) end
-    if eff.given > 0 then lines[#lines + 1] = "지급 골드: " .. Money.Format(eff.given) end
-    lines[#lines + 1] = "거래 시각: " .. U.FormatClock(tr.at)
-    return lines
 end
 
 ---------------------------------------------------------------------------

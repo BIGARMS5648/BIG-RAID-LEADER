@@ -3,7 +3,7 @@ local _, BRL = ...
 local T, W, L, U, Money, API = BRL.Theme, BRL.Widgets, BRL.L, BRL.Util, BRL.Money, BRL.API
 local UI, D, A = BRL.UI, BRL.Dialogs, BRL.UIActions
 
-local AU, Bids, P, LD = BRL.Auctions, BRL.Bids, BRL.Payments, BRL.LootDistribution
+local AU, Bids, P = BRL.Auctions, BRL.Bids, BRL.Payments
 
 -- 낙찰 → 거래 선택 연결
 function A.LinkAwardToTrade(aw)
@@ -55,13 +55,12 @@ local function itemText(auc)
 end
 
 local function build(page)
-    UI:PageHeader(page, L.MENU_AUCTION, "골드 경매 · 낙찰/수금 · 기타 분배")
+    UI:PageHeader(page, L.MENU_AUCTION, "골드 경매 · 낙찰/수금 · 구매자 기록")
     page.panels = {}
     page.tabs = W.Tabs(page, {
         { key = "auction", text = "골드 경매", width = 100 },
         { key = "awards", text = "낙찰·수금", width = 100 },
         { key = "buyers", text = "구매자 기록", width = 100 },
-        { key = "loot", text = "기타 분배 방식", width = 120 },
     }, function(key)
         page.tab = key
         for k, p in pairs(page.panels) do if k == key then p:Show() else p:Hide() end end
@@ -360,147 +359,6 @@ local function build(page)
         BRL:Print(sent > 0 and "%s 님에게 독촉 귓속말을 보냈습니다." or "%s 님은 현재 세션 미수금이 없습니다.", b.name)
     end, { perm = "finance.edit" }))
 
-    ---------------------------------------------------------------------
-    -- 기타 분배 방식
-    ---------------------------------------------------------------------
-    local pl = panel("loot")
-    pl.list = W.List(pl, {
-        columns = {
-            { title = "아이템", width = 0, render = function(r) return r.itemLink or r.itemName end },
-            { title = "방식", width = 90, render = function(r) return LD:MethodName(r.method) end },
-            { title = "신청자", width = 50, align = "CENTER", render = function(r) return U.Count(r.candidates) end },
-            { title = "수령자", width = 100, render = function(r) return r.winnerName or (r.suggestedWinner and ("추천 " .. API.ShortName(r.suggestedWinner))) or "-" end },
-            { title = "상태", width = 64, render = function(r) return ({ open = T.Color("yellow", "진행"), awarded = T.Color("green", "분배"), cancelled = T.Color("muted", "취소") })[r.status] end },
-        },
-        onClick = function() UI:RequestRefresh() end,
-    })
-    pl.list:SetPoint("TOPLEFT", 4, 0)
-    pl.list:SetSize(520, 400)
-    pl.cands = W.List(pl, {
-        columns = {
-            { title = "신청자", width = 0, render = function(c) return c.name end },
-            { title = "값", width = 120, align = "RIGHT", render = function(c)
-                local r = pl.list:GetSelected()
-                if not r then return "" end
-                if r.method == "roll" then return c.roll or "-" end
-                if r.method == "dkp" then return (c.bid and ("입찰 " .. c.bid .. " / ") or "") .. "DKP " .. LD:DKP(c.key) end
-                if r.method == "epgp" then local ep, gp, pr = LD:EPGP(c.key) return string.format("PR %.2f (%d/%d)", pr, ep, gp) end
-                if r.method == "council" then return "투표 " .. (c.votes or 0) end
-                return c.note or ""
-            end },
-        },
-    })
-    pl.cands:SetPoint("TOPLEFT", 534, 0)
-    pl.cands:SetSize(350, 400)
-    local function selR() return pl.list:GetSelected() end
-    local lb = CreateFrame("Frame", nil, pl)
-    lb:SetPoint("TOPLEFT", 4, -408)
-    lb:SetSize(880, 60)
-    local fl = W.Flow(lb, 0, 1, 4)
-    fl:Add(W.Button(lb, "아이템 등록", 84, 24, function()
-        local methods = {}
-        for _, m in ipairs(LD.METHODS) do methods[#methods + 1] = { value = m.key, text = m.name } end
-        D.Input("분배 아이템 등록", {
-            { key = "link", label = "아이템", type = "text", required = true, acceptItems = true, placeholder = "Shift+클릭/드래그" },
-            { key = "method", label = "분배 방식", type = "dropdown", items = methods, default = "roll" },
-        }, function(v)
-            local rec, err = LD:Register(v.link, v.method)
-            if rec then return true end
-            if err == "duplicate" or err == "duplicate_auction" then
-                D.Confirm(err == "duplicate" and "이미 분배 등록된 아이템입니다. 동일 아이템이 여러 개인 경우에만 추가 등록하세요." or "같은 아이템이 골드 경매로 낙찰되어 있습니다. 그래도 등록할까요?", function()
-                    A.Report(LD:Register(v.link, v.method, { allowDuplicate = true }))
-                end, { title = "중복 분배 확인" })
-                return true
-            end
-            return false, err
-        end)
-    end, { kind = "primary", perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "신청자 추가", 84, 24, function()
-        local r = selR()
-        if not r then return end
-        D.Input("신청자 추가", {
-            { key = "member", label = "공대원", type = "dropdown", items = A.MemberItems() },
-            { key = "bid", label = "DKP 입찰(선택)", type = "number" },
-            { key = "note", label = "메모", type = "text" },
-        }, function(v)
-            if not v.member then return false, "공대원을 선택하세요" end
-            return LD:AddCandidate(r.id, v.member, { bid = v.bid, note = v.note ~= "" and v.note or nil })
-        end)
-    end, { perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "주사위 시작", 84, 24, function() local r = selR() if r then LD:StartRoll(r.id, 20) end end, { perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "주사위 마감", 84, 24, function() local r = selR() if r then LD:EndRoll(r.id) end end, { perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "투표 +1", 64, 24, function()
-        local r, c = selR(), pl.cands:GetSelected()
-        if r and c then LD:Vote(r.id, c.key, 1) end
-    end, { perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "추천 수령자로 분배", 130, 24, function()
-        local r = selR()
-        if not r then return end
-        local key = LD:Suggest(r.id)
-        if not key then BRL:Print("추천 수령자가 없습니다.") return end
-        D.Input("분배 확정 - " .. API.ShortName(key), { { key = "cost", label = "비용(DKP/GP)", type = "number", default = (r.candidates[key] and r.candidates[key].bid) or 0 } },
-            function(v) return LD:Award(r.id, key, v.cost) end)
-    end, { kind = "primary", perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "선택 신청자로 분배", 130, 24, function()
-        local r, c = selR(), pl.cands:GetSelected()
-        if not r or not c then return end
-        D.Input("분배 확정 - " .. c.name, { { key = "cost", label = "비용(DKP/GP)", type = "number", default = c.bid or 0 } },
-            function(v) return LD:Award(r.id, c.key, v.cost) end)
-    end, { perm = "finance.edit" }))
-    fl:NewLine(28)
-    fl:Add(W.Button(lb, "분배 취소", 70, 24, function() local r = selR() if r then D.Reason("분배 취소", function(x) return LD:Cancel(r.id, x) end) end end, { perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "수령자 변경", 84, 24, function()
-        local r = selR()
-        if not r or r.status ~= "awarded" then return end
-        D.Select("새 수령자", A.MemberItems(), function(key) D.Reason("수령자 변경 사유", function(x) return LD:Modify(r.id, key, x) end) end)
-    end, { perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "DKP 조정", 70, 24, function()
-        D.Input("DKP 조정", {
-            { key = "member", label = "공대원(비우면 전원)", type = "dropdown", items = A.MemberItems(true) },
-            { key = "delta", label = "증감", type = "number", required = true },
-            { key = "reason", label = "사유", type = "text", required = true },
-        }, function(v)
-            if v.member then return LD:AdjustDKP(v.member, v.delta, v.reason) end
-            return LD:AwardRaidDKP(v.delta, v.reason) > 0
-        end)
-    end, { perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "EP 지급", 64, 24, function()
-        D.Input("EP 지급", {
-            { key = "member", label = "공대원(비우면 전원)", type = "dropdown", items = A.MemberItems(true) },
-            { key = "amount", label = "EP", type = "number", required = true },
-            { key = "reason", label = "사유", type = "text" },
-        }, function(v)
-            if v.member then return LD:AddEP(v.member, v.amount, v.reason) end
-            for _, m in ipairs(BRL.Roster:GetMembers()) do LD:AddEP(m.key, v.amount, v.reason) end
-            return true
-        end)
-    end, { perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "EPGP 감쇠", 76, 24, function()
-        D.Input("EPGP 감쇠", { { key = "pct", label = "감쇠율(%)", type = "number", default = 10, required = true } }, function(v) return LD:Decay(v.pct) end)
-    end, { perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "우선순위 설정", 96, 24, function()
-        local r = selR()
-        if not r then return end
-        local itemKey = tostring(U.ItemIdFromLink(r.itemLink) or r.itemName)
-        local cur2 = {}
-        for _, k in ipairs(LD:PriorityList(itemKey)) do cur2[#cur2 + 1] = API.ShortName(k) end
-        D.Input("우선순위 (앞쪽 우선, 쉼표 구분)", { { key = "list", label = "순서", type = "text", default = table.concat(cur2, ", ") } }, function(v)
-            local list = {}
-            for _, n in ipairs(U.Split(v.list, ",")) do
-                local key = API.NormalizeName(U.Trim(n))
-                if key then list[#list + 1] = key end
-            end
-            return LD:SetPriorityList(itemKey, list)
-        end)
-    end, { perm = "finance.edit" }))
-    fl:Add(W.Button(lb, "점수표 보기", 84, 24, function()
-        local lines = { "[DKP]" }
-        for _, e in ipairs(LD:DKPStandings()) do lines[#lines + 1] = API.ShortName(e.key) .. ": " .. e.value end
-        lines[#lines + 1] = ""
-        lines[#lines + 1] = "[EPGP] 이름: EP / GP / PR"
-        for _, e in ipairs(LD:EPGPStandings()) do lines[#lines + 1] = string.format("%s: %d / %d / %.2f", API.ShortName(e.key), e.ep, e.gp, e.pr) end
-        D.CopyText("DKP / EPGP 점수표", table.concat(lines, "\n"))
-    end))
     page.tabs:Select("auction")
 end
 
@@ -596,14 +454,6 @@ local function refresh(page)
         else
             pb.detail:SetText(T.Color("muted", "구매자를 선택하면 구매 내역이 표시됩니다."))
         end
-    else
-        local pl = page.panels.loot
-        pl.list:SetData(LD:List(sid), true)
-        local r = pl.list:GetSelected()
-        local cands = {}
-        if r then for _, c in pairs(r.candidates) do cands[#cands + 1] = c end end
-        table.sort(cands, function(x, y) return x.name < y.name end)
-        pl.cands:SetData(cands, true)
     end
     UI:SetPermBanner(page, "finance.edit")
 end

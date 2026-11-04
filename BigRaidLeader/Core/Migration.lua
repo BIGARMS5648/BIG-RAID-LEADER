@@ -25,6 +25,59 @@ M.steps = {
             tr.source = tr.source or "auto"
         end
     end,
+    -- v2 -> v3 (애드온 2.1): 폐기된 기능 정리
+    --  * 세션 보관(2.0)에 들어 있던 세션은 원래 테이블로 되돌린다 (데이터 손실 방지)
+    --  * 기타 분배(DKP/EPGP 등) · 징표 규칙 · 수동 점검 · 거래 결과 귓속말 · 정책 확인 저장값 제거
+    [3] = function(db)
+        local restored = 0
+        for sid, a in pairs(type(db.archives) == "table" and db.archives or {}) do
+            local okSum = type(a) == "table" and type(a.data) == "string" and U.Checksum(a.data) == a.checksum
+            local obj = okSum and BRL.Serializer.Deserialize(a.data, 16 * 1024 * 1024)
+            if type(obj) == "table" and type(obj.records) == "table" then
+                for name, t in pairs(obj.records) do
+                    if BRL.DB.TABLES[name] and type(t) == "table" then
+                        db[name] = db[name] or {}
+                        for id, rec in pairs(t) do
+                            if db[name][id] == nil then
+                                db[name][id] = rec
+                                if name == "trades" then
+                                    db.tradeOrder = db.tradeOrder or {}
+                                    table.insert(db.tradeOrder, id)
+                                end
+                            end
+                        end
+                    end
+                end
+                if type(obj.progress) == "table" then
+                    db.progress = db.progress or {}
+                    db.progress[sid] = db.progress[sid] or obj.progress
+                end
+                restored = restored + 1
+            else
+                -- 손상된 보관 기록은 백업(마이그레이션 전 자동 백업)에 남아 있으므로 원본을 지우지 않는다
+                db.archivesDamaged = db.archivesDamaged or {}
+                db.archivesDamaged[sid] = a
+            end
+        end
+        if restored > 0 and db.tradeOrder and db.trades then
+            table.sort(db.tradeOrder, function(x, y)
+                local tx, ty = db.trades[x], db.trades[y]
+                local ax, ay = tx and tx.at or 0, ty and ty.at or 0
+                if ax ~= ay then return ax < ay end
+                return tostring(x) < tostring(y)
+            end)
+        end
+        db.archives = nil
+        db.lootRecords, db.loot = nil, nil
+        if type(db.raidOps) == "table" then db.raidOps.markerTemplates, db.raidOps.readyManual = nil, nil end
+        local acct = db.account
+        if type(acct) == "table" then
+            acct.archive = nil
+            if type(acct.trade) == "table" then acct.trade.whisperPartner = nil end
+            if type(acct.auction) == "table" then acct.auction.policyAcknowledged = nil end
+        end
+        if restored > 0 then BRL:Print("보관했던 세션 %d개를 일반 세션 목록으로 되돌렸습니다 (세션 보관 기능 폐기).", restored) end
+    end,
 }
 
 function M:Run(db)

@@ -1,4 +1,4 @@
--- v2.0 추가 기능 테스트: 자가 진단 / 세션 보관 / 거래 정보 패널 / 미수금 독촉·입찰 제한 /
+-- v2 추가 기능 테스트: 자가 진단 / 거래 정보 패널 / 미수금 독촉·입찰 제한 /
 -- 연속 경매 / 구매자 기록 / 풀링 판정 / 보스 준비 적용 / 전멸 복구 / HUD / 공유 문자열
 local M = MOCK
 local G = 10000
@@ -14,21 +14,6 @@ local function sellOne(BRL, winner, amount, collected, itemId)
         assert(BRL.Payments:AllocateAuction(tr.id, aw.id, collected))
     end
     return aw, auc
-end
-
--- 정산 확정 + 전원 지급 완료
-local function settleAndPay(BRL, s)
-    local st = assert(BRL.Settlement:Create(s.id))
-    assert(BRL.Settlement:Finalize(st.id, { force = true }))
-    for _, ob in ipairs(BRL.Settlement:Obligations(st.id)) do
-        if ob.memberKey == BRL.playerKey then
-            assert(BRL.Payments:PaySelf(ob.id))
-        else
-            local tr = assert(BRL.TradeJournal:AddManual({ partner = ob.name, given = ob.amount, note = "분배", purpose = "payout" }))
-            assert(BRL.Payments:AllocatePayout(tr.id, ob.id, ob.amount))
-        end
-    end
-    return st
 end
 
 T.test("자가 진단: 섹션/수준 집계, 문제 상황 감지, 복사 텍스트", function()
@@ -63,96 +48,6 @@ T.test("자가 진단: 섹션/수준 집계, 문제 상황 감지, 복사 텍스
     BRL.readOnlyData = nil
     -- 표시 (복사 창)
     T.ok(BRL.Diagnostics:Show())
-end)
-
-T.test("세션 보관: 조건 검사 / 보관 / 목록 제외 / 체크섬 / 복원 원래 ID", function()
-    local BRL = T.fresh({ group = T.raid(5) })
-    local s1 = BRL.Session:Create({ name = "지난주 공격대" })
-    local aw = sellOne(BRL, "대원2", 3000 * G, 3000 * G, 101)
-    local st = settleAndPay(BRL, s1)
-    local nTrades = #BRL.TradeJournal:Query({ includeCancelled = true, includeVoided = true })
-    local ok, why = BRL.Archive:CanArchive(s1.id)
-    T.no(ok, "활성 세션 보관 불가")
-    T.contains(why, "활성")
-    local s2 = BRL.Session:Create({ name = "이번주" })
-    ok, why = BRL.Archive:CanArchive(s1.id)
-    T.no(ok)
-    T.contains(why, "종료되지 않은")
-    M.group = nil
-    T.ok(BRL.Session:Close(s1.id))
-    T.ok(BRL.Archive:CanArchive(s1.id), "종료 + 정산 완료 → 보관 가능")
-    -- 기간 기준: 아직 30일 안 됨
-    T.eq(#BRL.Archive:Candidates(30), 0)
-    T.eq(#BRL.Archive:Candidates(0), 1)
-    local before = BRL.Ledger:Summary(s1.id)
-    local entry = assert(BRL.Archive:ArchiveSession(s1.id))
-    T.ok(entry.recordCount >= 8, "레코드 수 " .. entry.recordCount)
-    T.eq(entry.summary.total, 3000 * G)
-    T.eq(entry.summary.buyers["대원2-아즈샤라"].count, 1)
-    T.no(BRL.Session:Get(s1.id), "세션 목록에서 빠짐")
-    T.no(BRL.Auctions:GetAward(aw.id), "낙찰 기록 빠짐")
-    T.no(BRL.Settlement:Get(st.id))
-    T.ok(#BRL.TradeJournal:Query({ includeCancelled = true, includeVoided = true }) < nTrades, "거래 로그에서 빠짐")
-    T.eq(#BRL.Migration:Validate(), 0, "보관 후 무결성")
-    T.ok(BRL.Archive:Verify(s1.id))
-    -- 손상 감지
-    local a = BRL.Archive:Get(s1.id)
-    local good = a.data
-    a.data = good:sub(1, -3) .. "xx"
-    T.no(BRL.Archive:Verify(s1.id), "체크섬 불일치")
-    T.no(BRL.Archive:Restore(s1.id), "손상 시 복원 중단")
-    a.data = good
-    -- 복원
-    T.ok(BRL.Archive:Restore(s1.id))
-    T.ok(BRL.Session:Get(s1.id))
-    T.ok(BRL.Auctions:GetAward(aw.id), "원래 ID 로 복원")
-    T.eq(#BRL.TradeJournal:Query({ includeCancelled = true, includeVoided = true }), nTrades)
-    local after = BRL.Ledger:Summary(s1.id)
-    T.eq(after.balance, before.balance, "장부 잔액 동일")
-    T.eq(after.collected, before.collected)
-    T.eq(#BRL.Migration:Validate(), 0, "복원 후 무결성")
-    T.no(BRL.Archive:Get(s1.id))
-    -- 내보내기 문자열
-    assert(BRL.Archive:ArchiveSession(s1.id))
-    local str = BRL.Archive:Export(s1.id)
-    local obj = assert(BRL.Serializer.Import(str, "archive"))
-    T.eq(obj.data.id, s1.id)
-    T.ok(BRL.Archive:Delete(s1.id))
-    T.eq(#BRL.Archive:List(), 0)
-    T.ok(s2)
-end)
-
-T.test("세션 보관: 미수금 / 교차 연결 세션은 보관 거부, 일괄 보관은 건너뜀", function()
-    local BRL = T.fresh({ group = T.raid(5) })
-    local s1 = BRL.Session:Create({ name = "미수금 세션" })
-    sellOne(BRL, "대원2", 2000 * G, 500 * G, 102)
-    local s2 = BRL.Session:Create({ name = "교차 세션" })
-    local aw2 = sellOne(BRL, "대원3", 1000 * G, 0, 103)
-    local s3 = BRL.Session:Create({ name = "세션3" })
-    local aw3 = sellOne(BRL, "대원3", 1000 * G, 0, 104)
-    -- 한 거래(2000)로 세션 2와 세션 3 낙찰을 함께 수금 → 교차 연결
-    local tr = assert(BRL.TradeJournal:AddManual({ partner = "대원3", received = 2000 * G, note = "x", purpose = "auction_payment" }))
-    assert(BRL.Payments:AllocateAuction(tr.id, aw2.id, 1000 * G))
-    assert(BRL.Payments:AllocateAuction(tr.id, aw3.id, 1000 * G))
-    T.eq(BRL.TradeJournal:Get(tr.id).sessionId, s2.id, "첫 연결 세션으로 이동")
-    BRL.Session:Create({ name = "세션4" })
-    M.group = nil
-    BRL.Session:Close(s1.id)
-    BRL.Session:Close(s2.id)
-    local ok, why = BRL.Archive:CanArchive(s1.id)
-    T.no(ok)
-    T.contains(why, "미수금")
-    ok, why = BRL.Archive:CanArchive(s2.id)
-    T.no(ok)
-    T.contains(why, "교차 연결")
-    BRL.Session:Close(s3.id)
-    ok, why = BRL.Archive:CanArchive(s3.id)
-    T.no(ok, "반대쪽 세션도 거부")
-    T.contains(why, "교차 연결")
-    local done, skipped = BRL.Archive:ArchiveOld(0)
-    T.eq(done, 0)
-    T.eq(#skipped, 3)
-    T.ok(BRL.Archive:ArchiveSession(s1.id, { force = true }), "강제 보관(미수금 무시)")
 end)
 
 T.test("거래 정보 패널: 미납 낙찰금 비교 / 분배금 입력(수락 안 함) / 보호 함수 실패 대체", function()
@@ -292,7 +187,7 @@ T.test("연속 경매: 낙찰/유찰 후 자동 시작, 취소, 전투 중 보�
     T.ok(found, "대기열 끝 공지")
 end)
 
-T.test("구매자 기록: 세션 합산 / 보관된 세션 포함 / 검색 / 미수금", function()
+T.test("구매자 기록: 세션 합산 / 검색 / 미수금", function()
     local BRL = T.fresh({ group = T.raid(5) })
     local s1 = BRL.Session:Create({ name = "1주차" })
     sellOne(BRL, "대원2", 1000 * G, 1000 * G, 501)
@@ -308,25 +203,8 @@ T.test("구매자 기록: 세션 합산 / 보관된 세션 포함 / 검색 / 미
     T.eq(list[1].sessions, 2)
     T.eq(list[1].outstanding, 1500 * G)
     T.eq(#BRL.Statistics:Buyers("대원3"), 1, "검색")
-    -- 1주차 보관 후에도 집계 유지
-    M.group = nil
-    local st = assert(BRL.Settlement:Create(s1.id))
-    assert(BRL.Settlement:Finalize(st.id, { force = true }))
-    for _, ob in ipairs(BRL.Settlement:Obligations(st.id)) do
-        if ob.memberKey == BRL.playerKey then assert(BRL.Payments:PaySelf(ob.id)) else
-            local tr = assert(BRL.TradeJournal:AddManual({ partner = ob.name, given = ob.amount, note = "분배", purpose = "payout" }))
-            assert(BRL.Payments:AllocatePayout(tr.id, ob.id, ob.amount))
-        end
-    end
-    BRL.Session:Close(s1.id)
-    assert(BRL.Archive:ArchiveSession(s1.id))
-    list = BRL.Statistics:Buyers()
-    T.eq(list[1].total, 3500 * G, "보관된 세션 포함")
-    T.eq(list[1].sessions, 2)
-    local found
-    for _, it in ipairs(list[1].items) do if it.session and it.session:find("보관") then found = true end end
-    T.ok(found, "보관 표시")
-    T.ok(s2)
+    T.ok(s1 and s2)
+    T.eq(#BRL.Statistics:History(), 2, "지난 세션 목록")
 end)
 
 -- 10인: 공대장(전사) + 마법사/도적/사냥꾼/흑마/드루이드/성기사/주술사/전사/사제
@@ -474,7 +352,7 @@ T.test("보스 준비 적용: 현재 보스 + 보스 편성 템플릿 + 화면�
     T.no(BRL.BossPlans:ApplyPrep(boss.key))
 end)
 
-T.test("공유 문자열: 공략/편성/전술표/징표/메모/목표 구성 왕복, 손상·종류 오류 감지", function()
+T.test("공유 문자열: 공략/편성/전술표 왕복, 폐기된 종류 거부, 손상·종류 오류 감지", function()
     local BRL = T.fresh({ group = T.raid(10) })
     BRL.Roster:Refresh()
     local boss = BRL.BossPlans:List("ONYXIAS_LAIR")[1]
@@ -510,22 +388,10 @@ T.test("공유 문자열: 공략/편성/전술표/징표/메모/목표 구성 �
     local found
     for _, n in ipairs(BRL.Groups:Templates()) do if n:find("^가져온 편성") then found = n end end
     T.ok(found, "가져온 편성 템플릿")
-    -- 징표 / 메모 / 목표 구성
-    BRL.Command:SetMarkerRule("default", 8, "target", "해골 먼저")
-    T.ok(BRL.Share:Apply(BRL.Share:Preview(BRL.Share:Export("markers", "default")), boss.key))
-    T.eq(BRL.Command:GetMarkerPlan(boss.key)[8].target, "해골 먼저")
-    BRL.Command:SetNote("default", "shared", "★ 숨결 피하기")
-    T.ok(BRL.Share:Apply(BRL.Share:Preview(BRL.Share:Export("notes", "default")), boss.key))
-    T.eq(BRL.Command:GetNote(boss.key, "shared"), "★ 숨결 피하기")
-    local t = BRL.Composition:Target(20)
-    local classes = {}
-    for k, v in pairs(t.classes) do classes[k] = v end
-    classes.MAGE = 5
-    BRL.Composition:SetTargetClasses(20, classes)
-    local cstr2 = BRL.Share:Export("comp", 20)
-    BRL.Composition:ResetTarget(20)
-    T.ok(BRL.Share:Apply((BRL.Share:Preview(cstr2))))
-    T.eq(BRL.Composition:Target(20).classes.MAGE, 5, "목표 구성 복원")
+    -- 징표 규칙·전술 메모·목표 구성 공유는 폐기
+    T.no(BRL.Share:Export("markers", "default"), "징표 규칙 공유 없음")
+    T.no(BRL.Share:Export("notes", "default"), "전술 메모 공유 없음")
+    T.no(BRL.Share:Export("comp", 20), "목표 구성 공유 없음")
     -- 손상 / 종류 오류
     local bad = str:sub(1, -6) .. "AAAA="
     T.no(BRL.Share:Preview(bad), "손상 감지")
@@ -568,9 +434,94 @@ T.test("HUD: 표시/숨김, 경매·카운트·거래·풀링 판정 줄, 슬래
     T.no(BRL.acct.hud.show)
     -- 슬래시 명령 (오류 없음)
     local before = #BRL.errors
-    for _, c in ipairs({ "hud", "hud", "판정", "독촉", "복구", "진단", "추적", "보관", "보스준비" }) do SlashCmdList.BIGRAIDLEADER(c) end
+    for _, c in ipairs({ "hud", "hud", "판정", "독촉", "복구", "진단", "추적", "보스준비" }) do SlashCmdList.BIGRAIDLEADER(c) end
     T.eq(#BRL.errors, before, "슬래시 오류 없음")
     BigRaidLeader_Binding("HUD")
     BigRaidLeader_Binding("PULLCHECK")
     T.eq(#BRL.errors, before)
+end)
+
+T.test("2.1 정리: HUD 지휘 명령 / 정책 안내 탭 없음 / 폐기 메뉴 / 지난 세션 목록", function()
+    local BRL = T.fresh({ group = T.raid(10) })
+    BRL.Roster:Refresh()
+    BRL.Session:Create({ name = "정리 테스트" })
+    BRL.HUD:Show()
+    local f = BRL.HUD.frame
+    local labels = {}
+    for _, b in ipairs(f.cmdButtons) do labels[#labels + 1] = b.label:GetText() end
+    local joined = table.concat(labels, ",")
+    for _, want in ipairs({ "준비 확인", "풀링 10초", "풀링 취소", "풀링 판정", "공격 중지", "후퇴", "재정비", "공략 안내", "전투 준비", "휴식 5분" }) do
+        T.contains(joined, want, "HUD 지휘 버튼")
+    end
+    M.ClearSent()
+    for _, b in ipairs(f.cmdButtons) do if b.label:GetText() == "공격 중지" then b:Click() end end
+    M.Advance(2)
+    T.contains(M.sent[#M.sent].msg, "공격 중지", "HUD 에서 공격 중지 공지")
+    for _, b in ipairs(f.cmdButtons) do if b.label:GetText() == "휴식 5분" then b:Click() end end
+    T.ok(BRL.Command:BreakRemaining(), "HUD 휴식 시작")
+    BRL.HUD:Update()
+    local breakBtn
+    for _, b in ipairs(f.cmdButtons) do if b.cmd.key == "break" then breakBtn = b end end
+    T.eq(breakBtn.label:GetText(), "휴식 종료", "휴식 중이면 종료 버튼으로 바뀜")
+    breakBtn:Click()
+    T.no(BRL.Command:BreakRemaining(), "HUD 휴식 종료")
+    -- 접기/펼치기
+    f.cmdToggle:Click()
+    T.no(f.cmdRows[1]:IsShown(), "지휘 버튼 접힘")
+    f.cmdToggle:Click()
+    T.ok(f.cmdRows[1]:IsShown(), "지휘 버튼 펼침")
+    BRL.HUD:Hide()
+    -- 설정: 정책 안내 / 세션 보관 탭 없음, 진단 탭 있음
+    BRL.UI:Open("settings")
+    local panels = BRL.UI.pages.settings.frame.panels
+    T.no(panels.policy, "정책 안내 탭 없음")
+    T.no(panels.archive, "세션 보관 탭 없음")
+    T.ok(panels.compat, "진단 탭")
+    -- 폐기된 메뉴/탭
+    T.no(BRL.UI.pages.stats, "공격대 통계 메뉴 없음")
+    BRL.UI:Open("auction")
+    T.no(BRL.UI.pages.auction.frame.panels.loot, "기타 분배 방식 탭 없음")
+    BRL.UI:Open("command")
+    T.no(BRL.UI.pages.command.frame.panels.marker, "징표 규칙 탭 없음")
+    T.no(BRL.LootDistribution, "기타 분배 모듈 없음")
+    T.no(BRL.Archive, "세션 보관 모듈 없음")
+    T.no(BRL.Data.ReadyManualItems, "수동 점검 항목 없음")
+    T.no(BRL.acct.trade.whisperPartner, "거래 결과 귓속말 설정 없음")
+    BRL.UIActions.SessionHistory()
+    T.ok(BRL.Dialogs, "지난 세션 목록")
+end)
+
+T.test("v2 → v3 마이그레이션: 2.0 의 보관 세션 복원 + 폐기 기능 저장값 정리", function()
+    local BRL = T.fresh()
+    local db = BRL.db
+    local payload = BRL.Serializer.Serialize({ records = {
+        sessions = { ["RS-old"] = { id = "RS-old", name = "보관된 세션", status = "closed", startedAt = 1 } },
+        trades = { ["TR-old"] = { id = "TR-old", at = 5, partnerName = "옛상대", playerMoney = 0, targetMoney = 1000, status = "completed", history = {} } },
+        awards = { ["AW-old"] = { id = "AW-old", sessionId = "RS-old", amount = 1000, status = "active", winnerKey = "대원2-아즈샤라" } },
+    }, progress = { bosses = {} } })
+    db.archives = {
+        ["RS-old"] = { id = "RS-old", data = payload, checksum = BRL.Util.Checksum(payload) },
+        ["RS-bad"] = { id = "RS-bad", data = payload .. "x", checksum = BRL.Util.Checksum(payload) },
+    }
+    db.lootRecords = { x = { id = "x" } }
+    db.loot = { dkp = {} }
+    db.raidOps.markerTemplates = { default = {} }
+    db.raidOps.readyManual = { default = {} }
+    db.account.archive = { days = 30 }
+    db.account.trade.whisperPartner = true
+    db.account.auction.policyAcknowledged = true
+    db.schemaVersion = 2
+    T.ok(BRL.Migration:Run(db))
+    T.eq(db.schemaVersion, 3)
+    T.ok(db.sessions["RS-old"], "보관 세션 복원")
+    T.ok(db.trades["TR-old"], "보관 거래 복원")
+    T.ok(BRL.Util.Contains(db.tradeOrder, "TR-old"), "거래 순서 목록에 추가")
+    T.ok(db.awards["AW-old"])
+    T.ok(db.progress["RS-old"])
+    T.no(db.archives, "보관 저장소 제거")
+    T.ok(db.archivesDamaged and db.archivesDamaged["RS-bad"], "손상된 보관 기록은 지우지 않고 따로 보존")
+    T.no(db.lootRecords) T.no(db.loot)
+    T.no(db.raidOps.markerTemplates) T.no(db.raidOps.readyManual)
+    T.no(db.account.archive) T.no(db.account.trade.whisperPartner) T.no(db.account.auction.policyAcknowledged)
+    T.ok(db.backups[1] and db.backups[1].label:find("마이그레이션 전"), "마이그레이션 전 자동 백업")
 end)

@@ -360,6 +360,22 @@ function A.ShareImport(targetKey)
     end, "BRL:share_ 로 시작하는 문자열을 붙여넣으세요.")
 end
 
+-- 지난 세션 목록 (옛 공격대 통계 화면의 세션 목록) → 선택 시 전환
+function A.SessionHistory()
+    local items = {}
+    local activeId = (BRL.Session:GetActive() or {}).id
+    for _, h in ipairs(BRL.Statistics:History()) do
+        local s = h.session
+        items[#items + 1] = { value = s.id, text = (s.id == activeId and "▶ " or "") .. (s.name or s.id),
+            sub = string.format("%s · 경매 %s · %s", U.FormatDate(s.startedAt), Money.Format(h.auctionTotal, { goldOnly = true }),
+                h.settlement == "-" and "정산 없음" or BRL.Label("SETTLE_", h.settlement)) }
+    end
+    if #items == 0 then D.Message("공격대 세션이 없습니다.") return end
+    D.Select("지난 공격대 세션", items, function(id)
+        if id ~= activeId then BRL.Session:SetActive(id) end
+    end, { description = "선택한 세션으로 전환합니다. (경매·장부·정산 화면이 그 세션 기준으로 바뀝니다)" })
+end
+
 -- 미수금 알림 (미수금 안내 공지 + 독촉 귓속말 통합)
 function A.Dunning()
     local s = BRL.Session:GetActive()

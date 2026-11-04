@@ -6,7 +6,7 @@ local U = BRL.Util
 local DB = {}
 BRL.DB = DB
 
-DB.SCHEMA_VERSION = 2
+DB.SCHEMA_VERSION = 3
 
 -- 레코드 테이블 이름 -> ID 접두사
 DB.TABLES = {
@@ -21,7 +21,6 @@ DB.TABLES = {
     payoutAllocations = "PA",   -- PayoutAllocation
     settlements = "ST",         -- Settlement
     reports = "RP",             -- SettlementReport
-    lootRecords = "LR",         -- 기타 전리품 분배 기록
 }
 
 DB.ACCOUNT_DEFAULTS = {
@@ -31,7 +30,6 @@ DB.ACCOUNT_DEFAULTS = {
         autoRecord = true,          -- 거래 자동 기록
         notifyScreen = true,        -- 화면 알림
         notifyChat = true,          -- 채팅창 기록 출력
-        whisperPartner = false,     -- 거래 결과 귓속말 (기본 비활성)
         completionPopup = true,     -- 거래 직후 목적 분류 창
         suggestLinks = true,        -- 경매/분배 연결 제안
         closeGraceSeconds = 3,      -- 거래 창 닫힘 후 완료 신호 대기 시간
@@ -60,7 +58,6 @@ DB.ACCOUNT_DEFAULTS = {
         remainderMode = "keep",     -- keep(잔돈 보관) | carry(다음 정산 이월) | leader(공대장 지급)
     },
     chat = { reportChannel = "RAID" },
-    archive = { days = 30, auto = false },
     hud = { show = false, locked = false, commands = true, point = nil },     -- 공대장 HUD (commands: 지휘 명령 버튼 펼침)  -- 세션 보관: N일 지난 종료 세션, 접속 시 자동 보관(기본 끔)
     buffs = { campReplacesClassBuff = true, expireWarnMinutes = 5, required = {} },
     readiness = { minDurability = 50 },
@@ -96,16 +93,14 @@ DB.ROOT_DEFAULTS = {
     raidOps = {
         groupTemplates = {}, groupPlan = nil, pinned = {},
         memberRoles = {}, assignments = {}, orders = {},
-        markerTemplates = {}, notes = {}, savedCommands = {},
+        notes = {}, savedCommands = {},
         recruitment = { templates = {}, current = nil, applicants = {} },
-        readyManual = {}, campStatus = {}, buffProviders = {},
+        campStatus = {}, buffProviders = {},
     },
     bossPlans = {},
     progress = {},
-    loot = { dkp = { pools = { default = {} } }, epgp = { standings = {}, baseGP = 100 }, priorities = {} },
     backups = {},
     errorLog = {},
-    archives = {},       -- 보관된 세션 (직렬화 문자열 + 체크섬)
     tradeTraces = {},    -- 최근 거래 이벤트 추적 (최대 10건)
 }
 

@@ -17,7 +17,6 @@ local function seed()
     BRL.TradeJournal:AddManual({ partner = "대원3", received = 50 * G, note = "미분류" })
     local st = BRL.Settlement:Create(s.id)
     BRL.Settlement:Finalize(st.id, { force = true })
-    BRL.LootDistribution:Register(M.ItemLink(3, "주사위템"), "roll")
     BRL.Recruitment:AddApplicant("지원자", "힐 1")
     BRL.Command:SaveCommand("집결", "입구 집결", "RAID")
     return BRL, s
@@ -29,12 +28,12 @@ local function errorsSince(BRL, n)
     return out
 end
 
-T.test("메인 창 열기 + 14개 메뉴 생성/갱신 (준비 상태 + 버프 → 전투 준비)", function()
+T.test("메인 창 열기 + 13개 메뉴 생성/갱신", function()
     local BRL = seed()
     local before = #BRL.errors
     BigRaidLeader_ToggleUI()
     T.ok(BRL.UI.frame and BRL.UI.frame:IsShown(), "창 열림")
-    T.eq(#BRL.UI.pageOrder, 14, "메뉴 14개")
+    T.eq(#BRL.UI.pageOrder, 13, "메뉴 13개 (전투 준비 통합, 공격대 통계 폐기)")
     for _, def in ipairs(BRL.UI.pageOrder) do
         BRL.UI:Open(def.key)
         BRL.UI:Refresh()

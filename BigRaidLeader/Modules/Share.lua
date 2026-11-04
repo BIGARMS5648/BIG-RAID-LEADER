@@ -1,5 +1,5 @@
 -- BIG RAID LEADER - 공유 문자열 (내보내기/가져오기)
--- 공략(보스 계획·배치도·타임라인), 파티 편성, 전술표(임무·순서표), 징표 규칙, 전술 메모, 목표 구성을
+-- 공략(보스 계획·배치도·타임라인), 파티 편성, 전술표(임무·순서표)를
 -- 체크섬이 붙은 문자열로 주고받는다. 다른 공대장/다른 캐릭터와 계획을 나눌 때 사용한다.
 -- 가져오기는 미리보기 → 확인 후 적용이며, 적용 전 자동 백업한다. 금융 데이터는 공유 대상이 아니다.
 local _, BRL = ...
@@ -79,58 +79,6 @@ Share.KINDS = {
             ops().orders[planKey] = U.DeepCopy(d.orders or {})
             BRL.Events:Fire(BRL.Events.MSG.DATA_CHANGED, "roles")
             return true, planKey
-        end,
-    },
-    markers = {
-        name = "징표 규칙",
-        export = function(planKey)
-            planKey = planKey or "default"
-            return { planKey = planKey, rules = U.DeepCopy(BRL.Command:GetMarkerPlan(planKey)) }, planKey
-        end,
-        describe = function(d) return string.format("징표 규칙 %s (%d개)", tostring(d.planKey), U.Count(d.rules or {})) end,
-        apply = function(d, planKey)
-            planKey = planKey or d.planKey or "default"
-            ops().markerTemplates[planKey] = U.DeepCopy(d.rules or {})
-            BRL.Events:Fire(BRL.Events.MSG.DATA_CHANGED, "command")
-            return true, planKey
-        end,
-    },
-    notes = {
-        name = "전술 메모",
-        export = function(planKey)
-            planKey = planKey or "default"
-            return { planKey = planKey, notes = U.DeepCopy(ops().notes[planKey] or {}) }, planKey
-        end,
-        describe = function(d)
-            local chars = 0
-            for _, t in pairs(d.notes or {}) do chars = chars + U.Utf8Len(t) end
-            return string.format("전술 메모 %s (%d개 분류, %d자)", tostring(d.planKey), U.Count(d.notes or {}), chars)
-        end,
-        apply = function(d, planKey)
-            planKey = planKey or d.planKey or "default"
-            ops().notes[planKey] = U.DeepCopy(d.notes or {})
-            BRL.Events:Fire(BRL.Events.MSG.DATA_CHANGED, "command")
-            return true, planKey
-        end,
-    },
-    comp = {
-        name = "목표 구성",
-        export = function(size)
-            local t = BRL.Composition:Target(size)
-            local k = BRL.Composition:SizeKey(size)
-            return { size = k, classes = U.DeepCopy(t.classes), roles = U.DeepCopy(t.roles) }, k .. "인"
-        end,
-        describe = function(d)
-            local n = 0
-            for _, c in pairs(d.classes or {}) do n = n + (tonumber(c) or 0) end
-            return string.format("%s인 목표 구성 (직업 %d명 기준)", tostring(d.size), n)
-        end,
-        apply = function(d)
-            BRL.acct.composition.targets[d.size] = { classes = U.DeepCopy(d.classes), roles = U.DeepCopy(d.roles) }
-            BRL.Composition.targetCache = nil
-            BRL.Composition.cache = nil
-            BRL.Events:Fire(BRL.Events.MSG.DATA_CHANGED, "composition")
-            return true, d.size
         end,
     },
 }
