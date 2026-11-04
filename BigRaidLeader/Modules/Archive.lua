@@ -115,7 +115,7 @@ local function summarize(records)
             end
             b.count = b.count + 1
             b.total = b.total + (aw.amount or 0)
-            b.items[#b.items + 1] = { name = U.StripColors(U.ItemNameFromLink(aw.itemLink) or aw.itemName or "?"), amount = aw.amount, at = aw.at }
+            b.items[#b.items + 1] = { name = U.StripColors(U.ItemNameFromLink(aw.itemLink) or aw.itemName or "?"), amount = aw.amount, at = aw.awardedAt }
         end
     end
     for _ in pairs(records.trades or {}) do sum.trades = sum.trades + 1 end

@@ -61,3 +61,57 @@ function Stats:History()
     end
     return out
 end
+
+-- 구매자 기록: 모든 세션(보관된 세션 포함)의 낙찰을 구매자별로 집계
+-- 반환 목록 항목: key, name, class, count, total, average, max, outstanding, sessions, last, items{name, amount, at, session, outstanding}
+function Stats:Buyers(query)
+    local by = {}
+    local function entry(key, name, class)
+        local b = by[key]
+        if not b then
+            b = { key = key, name = name or BRL.API.ShortName(key), class = class, count = 0, total = 0, max = 0, outstanding = 0,
+                sessions = 0, sessionSeen = {}, last = 0, items = {} }
+            by[key] = b
+        end
+        if class and not b.class then b.class = class end
+        return b
+    end
+    local function add(b, sessionKey, item, amount, at, outstanding, sessionName)
+        b.count = b.count + 1
+        b.total = b.total + (amount or 0)
+        if (amount or 0) > b.max then b.max = amount end
+        b.outstanding = b.outstanding + (outstanding or 0)
+        if not b.sessionSeen[sessionKey] then
+            b.sessionSeen[sessionKey] = true
+            b.sessions = b.sessions + 1
+        end
+        if (at or 0) > b.last then b.last = at end
+        b.items[#b.items + 1] = { name = item, amount = amount, at = at, session = sessionName, outstanding = outstanding }
+    end
+    for _, aw in pairs(DB:T("awards")) do
+        if aw.status == "active" and aw.winnerKey then
+            local st = BRL.Payments:AwardStatus(aw)
+            local s = BRL.Session:Get(aw.sessionId)
+            add(entry(aw.winnerKey, aw.winnerName, aw.winnerClass), aw.sessionId,
+                BRL.Util.StripColors(BRL.Util.ItemNameFromLink(aw.itemLink) or aw.itemName or "?"), aw.amount, aw.awardedAt, st.outstanding, s and s.name)
+        end
+    end
+    for _, a in ipairs(BRL.Archive and BRL.Archive:List() or {}) do
+        for key, b in pairs(a.summary and a.summary.buyers or {}) do
+            local e = entry(key, b.name)
+            for _, it in ipairs(b.items or {}) do add(e, a.id, it.name, it.amount, it.at, 0, (a.name or a.id) .. " (보관)") end
+        end
+    end
+    local out = {}
+    for _, b in pairs(by) do
+        b.sessionSeen = nil
+        b.average = b.count > 0 and math.floor(b.total / b.count) or 0
+        table.sort(b.items, function(x, y) return (x.at or 0) > (y.at or 0) end)
+        if not query or query == "" or BRL.Util.MatchSearch(b.name .. " " .. b.key, query) then out[#out + 1] = b end
+    end
+    table.sort(out, function(x, y)
+        if x.total ~= y.total then return x.total > y.total end
+        return x.key < y.key
+    end)
+    return out
+end

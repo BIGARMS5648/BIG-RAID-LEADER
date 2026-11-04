@@ -35,6 +35,7 @@ DB.ACCOUNT_DEFAULTS = {
         completionPopup = true,     -- 거래 직후 목적 분류 창
         suggestLinks = true,        -- 경매/분배 연결 제안
         closeGraceSeconds = 3,      -- 거래 창 닫힘 후 완료 신호 대기 시간
+        assistPanel = true,         -- 거래 창 옆 정보 패널 (미납 낙찰금/미지급 분배금 비교)
     },
     auction = {
         defaultDuration = 30,
@@ -50,6 +51,9 @@ DB.ACCOUNT_DEFAULTS = {
         cancelCountOnBid = true,    -- 카운트 중 새 입찰이 들어오면 카운트 취소
         antiSnipeSeconds = 0,       -- 막판 입찰 시 연장(초), 0=사용 안 함
         autoConfirmAward = false,   -- 종료 시 자동 낙찰 확정 (기본: 공대장 확인)
+        autoNext = false,           -- 연속 경매: 낙찰/유찰 후 다음 대기 경매 자동 시작
+        autoNextDelay = 8,          -- 연속 경매 대기 초
+        bidLimitOutstanding = 0,    -- 미납 낙찰금이 이 금액 이상이면 입찰 제한 (코퍼, 0=사용 안 함)
         policyAcknowledged = false,
     },
     settlement = {

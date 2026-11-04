@@ -60,6 +60,7 @@ local function build(page)
     page.tabs = W.Tabs(page, {
         { key = "auction", text = "골드 경매", width = 100 },
         { key = "awards", text = "낙찰·수금", width = 100 },
+        { key = "buyers", text = "구매자 기록", width = 100 },
         { key = "loot", text = "기타 분배 방식", width = 120 },
     }, function(key)
         page.tab = key
@@ -153,6 +154,13 @@ local function build(page)
         if a then D.Confirm("진행 중인 경매를 취소할까요?", function() AU:Cancel(a.id, "공대장 취소") end, { danger = true }) end
     end, { perm = "finance.edit" }))
     fc:Add(W.Button(ctl, "결과 공지", 70, 24, function() A.SendLines(AU:ResultLines((BRL.Session:GetActive() or {}).id), "경매 결과") end))
+    pa.autoNext = W.CheckBox(ctl, "연속 경매", function(v)
+        BRL.DB:SetSetting("auction.autoNext", v)
+        if v then AU:ScheduleAutoNext() else AU:CancelAutoNext() end
+    end, { "낙찰 확정/유찰 후 몇 초 뒤 다음 대기 경매를 자동으로 시작합니다.", "대기 시간: 설정 > 경매/정산 (기본 8초)", "전투 중에는 자동 시작하지 않습니다." })
+    pa.autoNext:SetPoint("TOPLEFT", 206, -59)
+    pa.autoNextStop = W.Button(ctl, "자동 시작 취소", 96, 24, function() AU:CancelAutoNext() end, { perm = "finance.edit" })
+    pa.autoNextStop:SetPoint("TOPLEFT", 318, -57)
 
     local bh = W.Section(pa, "입찰 내역")
     bh:SetPoint("TOPLEFT", 4, -246)
@@ -309,9 +317,59 @@ local function build(page)
         A.SendLines(lines, "미수금 안내")
     end))
     fw:Add(W.Button(wb, "결과 공지", 70, 24, function() A.SendLines(AU:ResultLines((BRL.Session:GetActive() or {}).id), "경매 결과") end))
+    fw:Add(W.Button(wb, "독촉 귓속말", 84, 24, function() A.Dunning() end,
+        { perm = "finance.edit", tooltip = { "미수금이 남은 낙찰자에게 아이템/금액을 귓속말로 안내합니다.", "같은 사람에게는 60초 안에 다시 보내지 않습니다." } }))
     pw.note = W.Paragraph(pw, "낙찰 금액은 수금 예정 금액입니다. 실제 수금은 '완료 확인'된 거래를 연결해야 반영됩니다. 자동 매칭은 제안만 하며, 금액이 같아도 자동 확정하지 않습니다.", 880, 11)
     pw.note:SetPoint("BOTTOMLEFT", 4, 8)
     T.SetTextColor(pw.note, "muted")
+
+    ---------------------------------------------------------------------
+    -- 구매자 기록 (모든 세션 + 보관된 세션)
+    ---------------------------------------------------------------------
+    local pb = panel("buyers")
+    pb.search = W.EditBox(pb, 160, 22, { placeholder = "구매자 검색", onChange = function() UI:RequestRefresh() end })
+    pb.search:SetPoint("TOPLEFT", 4, 0)
+    pb.summary = W.Label(pb, "", 12, "gold")
+    pb.summary:SetPoint("LEFT", pb.search, "RIGHT", 12, 0)
+    pb.list = W.List(pb, {
+        idKey = "key",
+        columns = {
+            { title = "구매자", width = 0, render = function(b) return BRL.Data.ColorName(b.name, b.class) end },
+            { title = "구매", width = 50, align = "CENTER", render = function(b) return b.count end },
+            { title = "총 구매액", width = 100, align = "RIGHT", render = function(b) return Money.Format(b.total, { goldOnly = true }) end },
+            { title = "평균", width = 90, align = "RIGHT", render = function(b) return Money.Format(b.average, { goldOnly = true }) end },
+            { title = "최고", width = 90, align = "RIGHT", render = function(b) return Money.Format(b.max, { goldOnly = true }) end },
+            { title = "미수금", width = 90, align = "RIGHT", render = function(b)
+                return b.outstanding > 0 and T.Color("red", Money.Format(b.outstanding, { goldOnly = true })) or T.Color("muted", "0")
+            end },
+            { title = "세션", width = 44, align = "CENTER", render = function(b) return b.sessions end },
+            { title = "최근 구매", width = 86, render = function(b) return b.last > 0 and U.FormatDate(b.last) or "-" end },
+        },
+        onClick = function() UI:RequestRefresh() end,
+    })
+    pb.list:SetPoint("TOPLEFT", 4, -28)
+    pb.list:SetSize(880, 250)
+    pb.detail = W.Paragraph(pb, "", 880, 11)
+    pb.detail:SetPoint("TOPLEFT", 4, -286)
+    local bb = CreateFrame("Frame", nil, pb)
+    bb:SetPoint("BOTTOMLEFT", 4, 8)
+    bb:SetSize(880, 26)
+    local fb = W.Flow(bb, 0, 1, 4)
+    fb:Add(W.Button(bb, "구매 내역 복사", 100, 24, function()
+        local lines = { "[BIG RAID LEADER 구매자 기록]" }
+        for _, b in ipairs(BRL.Statistics:Buyers(pb.search:GetText())) do
+            lines[#lines + 1] = string.format("%s: %d건 / 총 %s / 평균 %s / 최고 %s%s", b.name, b.count, Money.Format(b.total), Money.Format(b.average),
+                Money.Format(b.max), b.outstanding > 0 and (" / 미수 " .. Money.Format(b.outstanding)) or "")
+        end
+        D.CopyText("구매자 기록", table.concat(lines, "\n"))
+    end))
+    fb:Add(W.Button(bb, "선택 구매자 독촉", 110, 24, function()
+        local b = pb.list:GetSelected()
+        local s = BRL.Session:GetActive()
+        if not b or not s then return end
+        local sent = P:SendDunning(s.id, { b.key }, true)
+        BRL:Print(sent > 0 and "%s 님에게 독촉 귓속말을 보냈습니다." or "%s 님은 현재 세션 미수금이 없습니다.", b.name)
+    end, { perm = "finance.edit" }))
 
     ---------------------------------------------------------------------
     -- 기타 분배 방식
@@ -460,6 +518,10 @@ end
 local function tick(page, auc, rem)
     if page.tab ~= "auction" then return end
     local cur = page.panels.auction.cur
+    if not auc and AU.autoNext then
+        cur.timer:SetText(string.format("다음 %d초", AU:AutoNextRemaining() or 0))
+        T.SetTextColor(cur.timer, "blue")
+    end
     if auc and auc.status == "active" then
         if auc.countEndsClock then
             cur.timer:SetText(string.format("카운트 %d", math.ceil(rem or 0)))
@@ -508,9 +570,11 @@ local function refresh(page)
             cur.high:SetText("")
             cur.bidder:SetText("")
             cur.nextMin:SetText("")
-            cur.timer:SetText("")
+            cur.timer:SetText(AU.autoNext and string.format("다음 %d초", AU:AutoNextRemaining() or 0) or "")
             pa.bids:SetData({})
         end
+        pa.autoNext:SetChecked(BRL.acct.auction.autoNext and true or false)
+        if AU.autoNext then pa.autoNextStop:Show() else pa.autoNextStop:Hide() end
         local filter = pa.showAll:GetChecked() and nil or { queued = true, active = true, ended = true }
         pa.queue:SetData(sid and AU:List(sid, filter) or {}, true)
     elseif page.tab == "awards" then
@@ -524,6 +588,25 @@ local function refresh(page)
                 sum.refundDue > 0 and (" · " .. T.Color("red", "환불 필요 " .. Money.Format(sum.refundDue))) or ""))
         else
             pw.summary:SetText("공격대 세션이 없습니다")
+        end
+    elseif page.tab == "buyers" then
+        local pb = page.panels.buyers
+        local list = BRL.Statistics:Buyers(pb.search:GetText())
+        pb.list:SetData(list, true)
+        local total, owed = 0, 0
+        for _, b in ipairs(list) do total, owed = total + b.total, owed + b.outstanding end
+        pb.summary:SetText(string.format("구매자 %d명 · 총 %s · 미수 %s (보관된 세션 포함)", #list, Money.Format(total, { goldOnly = true }), Money.Format(owed, { goldOnly = true })))
+        local b = pb.list:GetSelected()
+        if b then
+            local lines = { T.Color("goldBright", b.name) .. " 구매 내역 (최근순)" }
+            for i, it in ipairs(b.items) do
+                if i > 12 then lines[#lines + 1] = "… 외 " .. (#b.items - 12) .. "건" break end
+                lines[#lines + 1] = string.format("%s  %s  %s%s  %s", it.at and U.FormatDate(it.at) or "-", it.name or "?", Money.Format(it.amount or 0),
+                    (it.outstanding or 0) > 0 and T.Color("red", " (미수 " .. Money.Format(it.outstanding) .. ")") or "", T.Color("muted", it.session or ""))
+            end
+            pb.detail:SetText(table.concat(lines, "\n"))
+        else
+            pb.detail:SetText(T.Color("muted", "구매자를 선택하면 구매 내역이 표시됩니다."))
         end
     else
         local pl = page.panels.loot

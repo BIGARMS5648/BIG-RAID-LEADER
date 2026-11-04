@@ -476,7 +476,7 @@ function P:OutstandingFor(memberKey, sessionId)
             end
         end
     end
-    table.sort(list, function(a, b) return (a.award.at or 0) < (b.award.at or 0) end)
+    table.sort(list, function(a, b) return (a.award.awardedAt or 0) < (b.award.awardedAt or 0) end)
     return total, list
 end
 
@@ -504,6 +504,45 @@ function P:Debtors(sessionId)
         return a.key < b.key
     end)
     return out
+end
+
+-- 미수금 독촉 귓속말 문구
+function P:DunningMessage(debtor)
+    local items = table.concat(debtor.items, ", ")
+    if #items > 120 then items = BRL.Util.Utf8Truncate(items, 117) .. "…" end
+    return string.format("[BIG RAID LEADER] 미납 낙찰금 안내: %s - 총 %s. 거래로 전달 부탁드립니다.", items, BRL.Money.Format(debtor.outstanding))
+end
+
+-- 미수금 보유자에게 귓속말 독촉. keys 생략 시 전체. 같은 사람은 60초 안에 다시 보내지 않음(force 제외)
+-- 반환: 보낸 인원, 건너뛴 인원
+function P:SendDunning(sessionId, keys, force)
+    if not BRL.Perm:Require("finance.edit") then return 0, 0 end
+    local session = BRL.Session:Get(sessionId)
+    if not session then return 0, 0 end
+    session.dunning = session.dunning or {}
+    local want
+    if keys then
+        want = {}
+        for _, k in ipairs(keys) do want[k] = true end
+    end
+    local sent, skipped = 0, 0
+    local now = BRL.Util.Clock()
+    for _, d in ipairs(self:Debtors(sessionId)) do
+        if not want or want[d.key] then
+            local last = session.dunning[d.key]
+            if not force and last and last.clock and (now - last.clock) < 60 then
+                skipped = skipped + 1
+            elseif d.key == BRL.playerKey then
+                skipped = skipped + 1 -- 본인 낙찰은 '본인 낙찰금 기록'으로 처리
+            else
+                BRL.ChatOut:Send(self:DunningMessage(d), "WHISPER", d.key)
+                session.dunning[d.key] = { at = BRL.Util.Now(), clock = now, amount = d.outstanding, count = ((last and last.count) or 0) + 1 }
+                sent = sent + 1
+            end
+        end
+    end
+    if sent > 0 then DB:Audit("payment.dunning", "session", sessionId, { sent = sent }) end
+    return sent, skipped
 end
 
 -- 분배 미지급 (memberKey 에게 줘야 할 남은 금액)

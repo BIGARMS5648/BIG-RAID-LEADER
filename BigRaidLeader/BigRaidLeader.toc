@@ -59,6 +59,7 @@ UI\Minimap.lua
 UI\MarkerBar.lua
 UI\Actions.lua
 UI\TradePopup.lua
+UI\TradeAssist.lua
 UI\PrepReport.lua
 UI\Dashboard.lua
 UI\Pages\Recruit.lua

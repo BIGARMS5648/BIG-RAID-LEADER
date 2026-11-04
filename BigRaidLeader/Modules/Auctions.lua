@@ -185,6 +185,10 @@ function A:Start(id)
     if auc.status ~= "queued" then return false, "대기 중인 경매만 시작할 수 있습니다" end
     local active = self:GetActive()
     if active then return false, "이미 진행 중인 경매가 있습니다: " .. (active.itemName or "?") end
+    if self.autoNext then
+        self.autoNext = nil
+        self.autoNextToken = (self.autoNextToken or 0) + 1
+    end
     auc.status = "active"
     auc.startedAt = U.Now()
     auc.endsClock = U.Clock() + auc.duration
@@ -208,9 +212,63 @@ function A:Start(id)
 end
 
 function A:StartNext(sessionId)
+    self:CancelAutoNext()
     local q = self:Queue(sessionId or (BRL.Session:GetActive() or {}).id)
     if #q == 0 then return false, "대기 중인 경매가 없습니다" end
     return self:Start(q[1].id)
+end
+
+---------------------------------------------------------------------------
+-- 연속 경매: 낙찰/유찰 후 N초 뒤 다음 대기 경매 자동 시작 (설정 auction.autoNext)
+---------------------------------------------------------------------------
+function A:AutoNextDelay()
+    return math.max(3, math.min(60, math.floor(tonumber(BRL.acct.auction.autoNextDelay) or 8)))
+end
+
+function A:ScheduleAutoNext(sessionId)
+    if not BRL.acct.auction.autoNext then return false end
+    if self:GetActive() then return false end
+    local q = self:Queue(sessionId or (BRL.Session:GetActive() or {}).id)
+    if #q == 0 then
+        if self.autoNext then self:CancelAutoNext() end
+        BRL.ChatOut:Send("[경매] 대기 중인 경매가 모두 끝났습니다.")
+        return false
+    end
+    local delay = self:AutoNextDelay()
+    self.autoNextToken = (self.autoNextToken or 0) + 1
+    local token = self.autoNextToken
+    self.autoNext = { at = U.Clock() + delay, auctionId = q[1].id, sessionId = q[1].sessionId }
+    BRL.ChatOut:Send(string.format("[경매] 다음 경매 %d초 후 시작: %s (남은 %d건)", delay, q[1].itemLink or q[1].itemName or "?", #q))
+    API.After(delay, function()
+        if self.autoNextToken ~= token or not self.autoNext then return end
+        self.autoNext = nil
+        if not BRL.acct.auction.autoNext or self:GetActive() then return end
+        if API.InCombat() then
+            BRL:Print("전투 중이라 다음 경매 자동 시작을 보류했습니다. [다음 경매 시작]을 눌러 주세요.")
+            return
+        end
+        local auc = self:Get(q[1].id)
+        if auc and auc.status == "queued" then
+            local ok, err = self:Start(auc.id)
+            if not ok then BRL:Print("다음 경매 자동 시작 실패: %s", tostring(err)) end
+        end
+        changed()
+    end)
+    changed()
+    return true
+end
+
+function A:CancelAutoNext()
+    if not self.autoNext then return false end
+    self.autoNext = nil
+    self.autoNextToken = (self.autoNextToken or 0) + 1
+    changed()
+    return true
+end
+
+function A:AutoNextRemaining()
+    if not self.autoNext then return nil end
+    return math.max(0, math.ceil(self.autoNext.at - U.Clock()))
 end
 
 function A:StartTicker()
@@ -401,6 +459,7 @@ function A:ConfirmAward(id, bidId)
         BRL:Print("공대장 본인 낙찰: [전리품 경매 > 낙찰·수금]에서 '본인 낙찰금 기록'으로 거래 로그에 남기세요.")
         BRL.Events:Fire(BRL.Events.MSG.SELF_AWARD, award)
     end
+    self:ScheduleAutoNext(auc.sessionId)
     return award
 end
 
@@ -416,6 +475,7 @@ function A:MarkUnsold(id, silentPerm)
     BRL.ChatOut:Send(string.format("[유찰] %s", auc.itemLink))
     if not self:GetActive() then self:StopTicker() end
     changed()
+    self:ScheduleAutoNext(auc.sessionId)
     return true
 end
 

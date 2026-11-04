@@ -244,6 +244,23 @@ function A.TradeDetail(tr)
     D.CopyText("거래 상세 - " .. (tr.partnerName or "?"), U.StripColors(table.concat(lines, "\n")))
 end
 
+-- 미수금 독촉 귓속말
+function A.Dunning()
+    local s = BRL.Session:GetActive()
+    if not s then D.Message("공격대 세션이 없습니다.") return end
+    local debtors = BRL.Payments:Debtors(s.id)
+    if #debtors == 0 then D.Message("미수금이 남은 낙찰자가 없습니다.") return end
+    local lines, total = {}, 0
+    for _, d in ipairs(debtors) do
+        lines[#lines + 1] = string.format("%s %s (%s)", d.name, Money.Format(d.outstanding), table.concat(d.items, ", "))
+        total = total + d.outstanding
+    end
+    D.Confirm(string.format("미수금 %d명 · 총 %s\n\n%s\n\n각자에게 귓속말로 안내할까요?", #debtors, Money.Format(total), table.concat(lines, "\n")), function()
+        local sent, skipped = BRL.Payments:SendDunning(s.id)
+        BRL:Print("독촉 귓속말 %d명 전송%s", sent, skipped > 0 and (" (최근 전송/본인 " .. skipped .. "명 제외)") or "")
+    end, { title = "미수금 독촉", acceptText = "귓속말 보내기" })
+end
+
 -- 최근 거래 이벤트 추적 (기록되지 않은 거래 포함)
 function A.TradeTraces()
     local J = BRL.TradeJournal
