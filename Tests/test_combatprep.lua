@@ -133,7 +133,7 @@ T.test("버튼/단축키/명령어 + 준비 상태 화면 도핑 열", function(
     T.ok(BRL.CombatPrep.last, "명령어")
     BRL.UI:Open("ready")
     BRL.UI:Refresh()
-    local list = BRL.UI.pages.ready.frame.list
+    local list = BRL.UI.pages.ready.frame.panels.ready.list
     local doping
     for i, c in ipairs(list.columns) do if c.title == "도핑" then doping = i end end
     T.ok(doping, "도핑 열")

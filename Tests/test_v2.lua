@@ -460,9 +460,11 @@ T.test("보스 준비 적용: 현재 보스 + 보스 편성 템플릿 + 화면�
     BRL.UI:Open("command")
     BRL.UI:Refresh()
     T.eq(BRL.UI.pages.command.frame.planKey, boss.key, "지휘 화면도 따라감")
-    BRL.UI:Open("buffs")
+    BRL.UI:Open("buffs") -- 옛 메뉴 이름 → 전투 준비 화면의 버프·도핑 탭
     BRL.UI:Refresh()
-    T.eq(BRL.UI.pages.buffs.frame.bossKey, boss.key, "버프 화면도 따라감")
+    T.eq(BRL.UI.current, "ready")
+    T.eq(BRL.UI.pages.ready.frame.tab, "buffs")
+    T.eq(BRL.UI.pages.ready.frame.bossKey, boss.key, "버프 화면도 따라감")
     BRL.UIActions.ApplyBossPrep(boss.key)
     T.ok(BRL.Dialogs, "확인 창")
     -- 공대장이 아니면 거부

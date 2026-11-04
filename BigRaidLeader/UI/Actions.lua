@@ -244,6 +244,47 @@ function A.TradeDetail(tr)
     D.CopyText("거래 상세 - " .. (tr.partnerName or "?"), U.StripColors(table.concat(lines, "\n")))
 end
 
+-- 지휘 명령 목록 (전투 지휘 화면 · HUD 공용). opts: pull(초), breakMin(분), bossKey
+local function briefingBoss(opts)
+    local key = opts and opts.bossKey
+    if not key or key == "default" then key = BRL.RaidProgress:GetCurrentBoss() end
+    if not key then
+        local active = BRL.BossPlans:ActivePlanKey()
+        if active ~= "default" then key = active end
+    end
+    return key
+end
+A.COMMANDS = {
+    { key = "ready", label = "준비 확인", hud = "준비 확인", primary = true, run = function() BRL.Command:ReadyCheck() end },
+    { key = "pull", label = "풀링 카운트다운", primary = true,
+        hud = function() return "풀링 " .. BRL.acct.command.pullSeconds .. "초" end,
+        run = function(opts) A.PullWithCheck((opts and opts.pull) or BRL.acct.command.pullSeconds) end },
+    { key = "cancelpull", label = "풀링 취소", hud = "풀링 취소", primary = true, run = function() BRL.Command:CancelPull() end },
+    { key = "stop", label = "공격 중지", hud = "공격 중지", run = function() BRL.Command:Stop() end },
+    { key = "retreat", label = "후퇴", hud = "후퇴", run = function() BRL.Command:Retreat() end },
+    { key = "regroup", label = "전투 재정비", hud = "재정비", run = function() BRL.Command:Regroup() end },
+    { key = "break", label = "휴식 시작",
+        hud = function() return BRL.Command:BreakRemaining() and "휴식 종료" or ("휴식 " .. BRL.acct.command.breakMinutes .. "분") end,
+        run = function(opts)
+            -- HUD 에서는 한 버튼으로 시작/종료 전환
+            if opts and opts.toggle and BRL.Command:BreakRemaining() then return BRL.Command:BreakEnd() end
+            return BRL.Command:BreakStart((opts and opts.breakMin) or BRL.acct.command.breakMinutes)
+        end },
+    { key = "breakend", label = "휴식 종료", run = function() BRL.Command:BreakEnd() end },
+    { key = "prep", label = "전투 준비 (도핑 점검)", hud = "전투 준비", perm = false, run = function() BRL.CombatPrep:Run() end },
+    { key = "briefing", label = "보스 공략 안내", hud = "공략 안내", run = function(opts)
+        local key = briefingBoss(opts)
+        if not key then BRL:Print("보스를 선택하거나 공략 화면에서 [준비 적용]으로 현재 보스를 지정하세요.") return end
+        BRL.Command:BossBriefing(key)
+    end },
+    { key = "pullcheck", hud = "풀링 판정", perm = false, run = function() A.ShowPullCheck() end },
+}
+function A.Command(key, opts)
+    for _, c in ipairs(A.COMMANDS) do
+        if c.key == key then return c.run(opts) end
+    end
+end
+
 -- 풀링: 판정이 "보류"면 사유를 보여주고 확인 후 진행 (공대장 판단 우선)
 function A.PullWithCheck(seconds)
     seconds = seconds or BRL.acct.command.pullSeconds
@@ -282,14 +323,19 @@ function A.ApplyBossPrep(bossKey)
 end
 
 -- 공유 문자열 메뉴 (내보내기/가져오기)
-function A.ShareMenu(kind, key, title)
+-- textFn: 사람이 읽는 텍스트 복사(디스코드 등) 항목을 함께 보여줄 때
+function A.ShareMenu(kind, key, title, textFn)
     local def = BRL.Share.KINDS[kind]
     if not def then return end
-    D.Select((title or def.name) .. " 공유", {
-        { value = "export", text = "공유 문자열 만들기 (내보내기)" },
+    local items = {
+        { value = "export", text = "공유 문자열 만들기 (내보내기)", sub = "다른 공대장의 애드온으로 가져가기" },
         { value = "import", text = "공유 문자열 붙여넣기 (가져오기)" },
-    }, function(v)
-        if v == "export" then
+    }
+    if textFn then table.insert(items, 1, { value = "text", text = "텍스트로 복사", sub = "디스코드/메모장에 붙여넣기" }) end
+    D.Select((title or def.name) .. " 공유", items, function(v)
+        if v == "text" then
+            D.CopyText((title or def.name) .. " - 텍스트", textFn())
+        elseif v == "export" then
             local str, label = BRL.Share:Export(kind, key)
             if not str then D.Message(tostring(label)) return end
             D.CopyText(def.name .. " 공유 - " .. tostring(label), str, { hint = "Ctrl+C 로 복사해 다른 공대장에게 전달하세요. 금융 기록은 포함되지 않습니다." })
@@ -314,7 +360,7 @@ function A.ShareImport(targetKey)
     end, "BRL:share_ 로 시작하는 문자열을 붙여넣으세요.")
 end
 
--- 미수금 독촉 귓속말
+-- 미수금 알림 (미수금 안내 공지 + 독촉 귓속말 통합)
 function A.Dunning()
     local s = BRL.Session:GetActive()
     if not s then D.Message("공격대 세션이 없습니다.") return end
@@ -325,10 +371,17 @@ function A.Dunning()
         lines[#lines + 1] = string.format("%s %s (%s)", d.name, Money.Format(d.outstanding), table.concat(d.items, ", "))
         total = total + d.outstanding
     end
-    D.Confirm(string.format("미수금 %d명 · 총 %s\n\n%s\n\n각자에게 귓속말로 안내할까요?", #debtors, Money.Format(total), table.concat(lines, "\n")), function()
-        local sent, skipped = BRL.Payments:SendDunning(s.id)
-        BRL:Print("독촉 귓속말 %d명 전송%s", sent, skipped > 0 and (" (최근 전송/본인 " .. skipped .. "명 제외)") or "")
-    end, { title = "미수금 독촉", acceptText = "귓속말 보내기" })
+    D.Select("미수금 알림", {
+        { value = "whisper", text = "각자에게 귓속말 (권장)", sub = "같은 사람은 60초 안에 다시 보내지 않음" },
+        { value = "raid", text = "공격대 채팅에 목록 공지" },
+    }, function(v)
+        if v == "raid" then
+            A.SendLines(BRL.Payments:DebtorLines(s.id), "미수금 안내")
+        else
+            local sent, skipped = BRL.Payments:SendDunning(s.id)
+            BRL:Print("독촉 귓속말 %d명 전송%s", sent, skipped > 0 and (" (최근 전송/본인 " .. skipped .. "명 제외)") or "")
+        end
+    end, { description = string.format("미수금 %d명 · 총 %s\n%s", #debtors, Money.Format(total), table.concat(lines, "\n")) })
 end
 
 -- 최근 거래 이벤트 추적 (기록되지 않은 거래 포함)

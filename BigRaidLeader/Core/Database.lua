@@ -54,7 +54,6 @@ DB.ACCOUNT_DEFAULTS = {
         autoNext = false,           -- 연속 경매: 낙찰/유찰 후 다음 대기 경매 자동 시작
         autoNextDelay = 8,          -- 연속 경매 대기 초
         bidLimitOutstanding = 0,    -- 미납 낙찰금이 이 금액 이상이면 입찰 제한 (코퍼, 0=사용 안 함)
-        policyAcknowledged = false,
     },
     settlement = {
         rounding = 1,               -- 1=코퍼, 100=실버, 10000=골드
@@ -62,7 +61,7 @@ DB.ACCOUNT_DEFAULTS = {
     },
     chat = { reportChannel = "RAID" },
     archive = { days = 30, auto = false },
-    hud = { show = false, locked = false, point = nil },     -- 공대장 HUD  -- 세션 보관: N일 지난 종료 세션, 접속 시 자동 보관(기본 끔)
+    hud = { show = false, locked = false, commands = true, point = nil },     -- 공대장 HUD (commands: 지휘 명령 버튼 펼침)  -- 세션 보관: N일 지난 종료 세션, 접속 시 자동 보관(기본 끔)
     buffs = { campReplacesClassBuff = true, expireWarnMinutes = 5, required = {} },
     readiness = { minDurability = 50 },
     command = { pullSeconds = 10, breakMinutes = 5 },

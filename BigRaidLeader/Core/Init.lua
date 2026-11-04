@@ -36,15 +36,14 @@ BRL.Events:Register("PLAYER_LOGIN", Init, onLogin)
 local HELP = {
     "|cffd4af37BIG RAID LEADER|r 명령어",
     "/brl - 메인 창 열기/닫기",
-    "/brl <메뉴> - 메뉴 바로 열기 (대시보드, 모집, 공대원, 편성, 역할, 준비, 버프, 지휘, 공략, 경매, 거래, 장부, 정산, 통계, 설정)",
+    "/brl <메뉴> - 메뉴 바로 열기 (대시보드, 모집, 공대원, 편성, 역할, 준비, 버프, 야영지, 지휘, 공략, 경매, 거래, 장부, 정산, 통계, 설정)",
     "/brl 경매 [아이템링크] [시작가] - 경매 등록",
     "/brl 입찰 <이름> <금액> - 진행 중 경매에 수동 입찰",
     "/brl 카운트 - 경매 카운트(5초) / /brl 카운트취소 - 카운트 취소",
     "/brl 준비 - 준비 확인 / /brl 풀 [초] - 풀링 카운트다운",
     "/brl 전투준비 - 도핑(음식/영약/비약) 점검 / /brl 구성 [20|40] - 구성 분석·추천 직업",
     "/brl 세션 [이름] - 새 공격대 세션",
-    "/brl 백업 - 데이터 백업 / /brl 검사 - 데이터 무결성 검사",
-    "/brl 호환성 - API 지원 여부 확인 / /brl 진단 - 자가 진단 (문제 보고용)",
+    "/brl 백업 - 데이터 백업 / /brl 진단 - 자가 진단 (API·무결성·오류 기록, 문제 보고용)",
     "/brl 추적 - 최근 거래 이벤트 추적 / /brl 보관 - 오래된 종료 세션 보관",
     "/brl hud - 공대장 HUD 열기/닫기 / /brl 판정 - 풀링 판정 / /brl 독촉 - 미수금 독촉 귓속말",
     "/brl 복구 - 전멸 복구 점검 (사망자·영혼석·재버프·도핑) / /brl 보스준비 - 현재 보스 준비 적용",
@@ -57,7 +56,7 @@ local PAGE_ALIASES = {
     ["편성"] = "groups", ["파티"] = "groups", groups = "groups",
     ["역할"] = "roles", roles = "roles",
     ["준비"] = "ready", ready = "ready",
-    ["버프"] = "buffs", buffs = "buffs", ["야영지"] = "buffs",
+    ["버프"] = "buffs", buffs = "buffs", ["야영지"] = "camps",
     ["지휘"] = "command", command = "command",
     ["공략"] = "boss", boss = "boss",
     ["경매"] = "auction", auction = "auction",
@@ -103,7 +102,8 @@ function Init:Slash(msg)
         return
     end
     if cmd == "풀" or lower == "pull" then
-        if BRL.Perm:Require("raid.command") then BRL.Command:Pull(tonumber(rest) or BRL.acct.command.pullSeconds) end
+        -- 풀링 판정이 보류면 확인 창을 거친다 (대시보드/지휘/HUD 와 동일)
+        if BRL.Perm:Require("raid.command") then BRL.UIActions.PullWithCheck(tonumber(rest) or BRL.acct.command.pullSeconds) end
         return
     end
     if cmd == "경매" and rest ~= "" then
@@ -136,23 +136,6 @@ function Init:Slash(msg)
         if b then BRL:Print("백업 완료 (%s바이트, 체크섬 %d)", U.FormatNumber(b.size), b.checksum) end
         return
     end
-    if cmd == "검사" or lower == "validate" then
-        local issues = BRL.Migration:Validate()
-        if #issues == 0 then BRL:Print("데이터 무결성 검사: 문제 없음") return end
-        BRL:Print("데이터 무결성 검사: %d개 항목", #issues)
-        for i = 1, math.min(10, #issues) do
-            BRL:Print(" - [%s] %s %s", issues[i].severity, issues[i].message, tostring(issues[i].entity or ""))
-        end
-        return
-    end
-    if cmd == "호환성" or lower == "compat" then
-        BRL:Print("클라이언트: %s", API.GetBuildText())
-        for _, r in ipairs(API.RunCompatibilityCheck()) do
-            if not r.ok then BRL:Print(" |cffff5555미지원|r %s", r.name) end
-        end
-        BRL:Print("미지원 항목만 표시했습니다. 전체 목록: 설정 > 호환성")
-        return
-    end
     if lower == "hud" or cmd == "허드" then
         BRL.HUD:Toggle()
         return
@@ -178,7 +161,7 @@ function Init:Slash(msg)
         if BRL.UIActions then BRL.UIActions.ApplyBossPrep(key) end
         return
     end
-    if cmd == "진단" or lower == "diag" then
+    if cmd == "진단" or lower == "diag" or cmd == "검사" or lower == "validate" or cmd == "호환성" or lower == "compat" then
         BRL.Diagnostics:Show()
         return
     end
@@ -231,7 +214,7 @@ function _G.BigRaidLeader_Binding(action)
     if action == "READY" then
         if BRL.Perm:Require("raid.command") then BRL.Command:ReadyCheck() end
     elseif action == "PULL" then
-        if BRL.Perm:Require("raid.command") then BRL.Command:Pull(BRL.acct.command.pullSeconds) end
+        if BRL.Perm:Require("raid.command") then BRL.UIActions.PullWithCheck(BRL.acct.command.pullSeconds) end
     elseif action == "CANCELPULL" then
         if BRL.Perm:Require("raid.command") then BRL.Command:CancelPull() end
     elseif action == "COUNT" then

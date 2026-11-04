@@ -153,7 +153,6 @@ function Diag:Run()
     end
     local q = #(BRL.ChatOut.queue or {})
     if q > 5 then add("warn", "채팅 출력 대기열 " .. q .. "줄 (채팅 잠금/전송 제한)") end
-    if not BRL.acct.auction.policyAcknowledged then add("info", "골드 경매 정책 안내 미확인 (설정 > 정책 안내)") end
     return report
 end
 

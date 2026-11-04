@@ -1,4 +1,5 @@
--- BIG RAID LEADER - 버프 및 야영지 화면
+-- BIG RAID LEADER - 전투 준비 화면 (준비 확인 + 버프·도핑 + 야영지 효과 + 필수 버프)
+-- 예전 "준비 상태"와 "버프 및 야영지" 두 메뉴를 하나로 합쳤다. 화면 키는 "ready" (옛 "buffs" 는 탭 별칭)
 local _, BRL = ...
 local T, W, L, U, API = BRL.Theme, BRL.Widgets, BRL.L, BRL.Util, BRL.API
 local UI, D, A = BRL.UI, BRL.Dialogs, BRL.UIActions
@@ -10,10 +11,11 @@ local function short(name)
 end
 
 local function build(page)
-    UI:PageHeader(page, L.MENU_BUFFS, "직업 버프 · 도핑 · 포에버 야영지 효과")
+    UI:PageHeader(page, L.MENU_READY, "준비 확인 · 직업 버프 · 도핑 · 야영지 효과")
     page.bossKey = nil
     page.tabs = W.Tabs(page, {
-        { key = "buffs", text = "버프 점검", width = 100 },
+        { key = "ready", text = "준비 확인", width = 90 },
+        { key = "buffs", text = "버프·도핑", width = 90 },
         { key = "camps", text = "야영지 효과", width = 100 },
         { key = "setup", text = "필수 버프/담당자", width = 130 },
     }, function(key) page.tab = key
@@ -33,6 +35,9 @@ local function build(page)
         page.panels[key] = p
         return p
     end
+
+    -- 준비 확인 (Ready.lua)
+    UI.ReadyPanel.Build(panel("ready"))
 
     -- 버프 점검
     local pb = panel("buffs")
@@ -67,7 +72,8 @@ local function build(page)
     pb.missing = W.Paragraph(pb, "", 880, 12)
     pb.missing:SetPoint("BOTTOMLEFT", 4, 36)
     local _, f = UI.BottomBar(pb)
-    f:Add(W.Button(f.parent, "버프 점검(재검사)", 120, 24, function() B:Scan() C:Verify() end, { kind = "primary" }))
+    -- 버프 재검사는 전투 준비 점검과 같은 동작 (도핑/풀링 판정 결과도 함께 갱신)
+    f:Add(W.Button(f.parent, "다시 점검", 90, 24, function() BRL.CombatPrep:Run({ silent = true }) C:Verify() end, { kind = "primary" }))
     f:Add(W.Button(f.parent, "누락 버프 채팅 출력", 140, 24, function() A.SendLines(B:MissingLines(page.bossKey), "누락 버프 출력") end))
     f:Add(W.Button(f.parent, "중복/대체 관계", 110, 24, function() D.CopyText("버프 중복/대체 관계", table.concat(B:OverlapNotes(), "\n")) end))
 
@@ -107,7 +113,7 @@ local function build(page)
         if not r or not page.bossKey then BRL:Print("오른쪽 위에서 보스를 선택하세요.") return end
         C:SetBossRequirement(page.bossKey, r.facility.key, not r.required)
     end, { perm = "raid.plan" }))
-    f2:Add(W.Button(f2.parent, "효과 확인(버프 점검)", 140, 24, function() B:Scan() C:Verify() end, { kind = "primary" }))
+    f2:Add(W.Button(f2.parent, "효과 확인(다시 점검)", 140, 24, function() BRL.CombatPrep:Run({ silent = true }) C:Verify() end, { kind = "primary" }))
     f2:Add(W.Button(f2.parent, "채팅 출력", 80, 24, function() A.SendLines(C:OutputLines(page.bossKey), "야영지 효과 출력") end))
 
     -- 필수 버프 / 담당자
@@ -145,13 +151,18 @@ local function build(page)
         D.Select(b.name .. " 담당자", A.MemberItems(true), function(key) B:SetProvider(b.key, key or nil) end)
     end, { perm = "raid.plan" }))
     f3:Add(W.Button(f3.parent, "담당자 자동 지정", 120, 24, function() BRL:Print("%d개 버프 담당자 지정", B:AutoAssignProviders()) end, { perm = "raid.plan" }))
-    page.tabs:Select("buffs")
+    page.tabs:Select("ready")
 end
 
 local function refresh(page)
     page.bossDrop:SetItems(UI.PlanItems())
     UI.FollowActivePlan(page, function(key) page.bossKey = (key ~= "default") and key or nil page.bossDrop:SetValue(key, true) end)
-    if page.tab == "buffs" then
+    if page.bossDrop then if page.tab == "ready" then page.bossDrop:Hide() else page.bossDrop:Show() end end
+    if page.tab == "ready" then
+        UI.ReadyPanel.Refresh(page.panels.ready)
+        UI:SetPermBanner(page, "raid.command")
+        return
+    elseif page.tab == "buffs" then
         local pb = page.panels.buffs
         local required = {}
         for _, b in ipairs(B:RequiredList(page.bossKey)) do required[b.key] = true end
@@ -178,4 +189,4 @@ local function refresh(page)
     end
 end
 
-UI:RegisterPage("buffs", { title = L.MENU_BUFFS, order = 7, build = build, refresh = refresh })
+UI:RegisterPage("ready", { title = L.MENU_READY, order = 6, build = build, refresh = refresh })

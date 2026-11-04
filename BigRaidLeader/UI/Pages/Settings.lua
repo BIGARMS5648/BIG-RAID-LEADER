@@ -1,15 +1,7 @@
--- BIG RAID LEADER - 설정 / 데이터 관리 / 호환성 / 정책 안내
+-- BIG RAID LEADER - 설정 / 데이터 관리 / 세션 보관 / 진단
 local _, BRL = ...
 local T, W, L, U, Money, API = BRL.Theme, BRL.Widgets, BRL.L, BRL.Util, BRL.Money, BRL.API
 local UI, D = BRL.UI, BRL.Dialogs
-
-local POLICY = table.concat({
-    "[골드팟(GDKP) 정책 안내]",
-    "· 블리자드는 2026년 9월 개발자 Q&A에서 WoW: Forever 의 GDKP 금지를 발표했고, 이후 인터뷰에서 금지 대상이 북미/유럽 서버라고 밝힌 것으로 보도되었습니다.",
-    "· 한국 서버 적용 여부는 이 애드온 개발 시점(2026년 11월)에 공식 확인되지 않았습니다. 골드 경매 운영 전 반드시 블리자드 공식 공지와 이용약관을 확인하세요.",
-    "· 이 애드온은 현금 거래, 골드 구매/판매, 게임 밖 거래를 지원하지 않습니다. 모든 골드 이동은 정상적인 게임 내 거래로만 이루어지며, 애드온은 내 캐릭터의 거래만 기록합니다.",
-    "· 다른 플레이어 사이의 거래는 감시하거나 기록하지 않습니다.",
-}, "\n")
 
 local function build(page)
     UI:PageHeader(page, L.MENU_SETTINGS, "애드온 설정 · 데이터 관리")
@@ -17,8 +9,7 @@ local function build(page)
     page.tabs = W.Tabs(page, {
         { key = "general", text = "일반/거래", width = 100 }, { key = "auction", text = "경매/정산", width = 100 },
         { key = "data", text = "데이터 관리", width = 100 }, { key = "archive", text = "세션 보관", width = 90 },
-        { key = "compat", text = "호환성", width = 80 },
-        { key = "policy", text = "정책 안내", width = 90 },
+        { key = "compat", text = "진단", width = 70 },
     }, function(key)
         page.tab = key
         for k, p in pairs(page.panels) do if k == key then p:Show() else p:Hide() end end
@@ -61,6 +52,8 @@ local function build(page)
     check(pg, 230, 204, "공대장 HUD 표시", "hud.show", { "메인 창 없이 경매/카운트, 거래 상대, 풀링 판정, 도핑, 미지급을 보여주는 작은 창", "/brl hud" },
         function(v) if v then BRL.HUD:Show() else BRL.HUD:Hide() end end)
     check(pg, 360, 204, "HUD 위치 잠금", "hud.locked")
+    check(pg, 230, 228, "HUD 지휘 명령 버튼", "hud.commands", { "준비 확인/풀링/공격 중지/후퇴/재정비/휴식/공략 안내 버튼을 HUD 에 표시합니다.", "HUD 제목줄의 [지휘]로도 접고 펼 수 있습니다." },
+        function() if BRL.HUD.frame then BRL.HUD:Layout() end end)
     local sl = W.Label(pg, "창 크기 배율", 12, "muted")
     sl:SetPoint("TOPLEFT", 8, -236)
     local scaleDrop = W.Dropdown(pg, 100, {
@@ -239,12 +232,6 @@ local function build(page)
             D.Message(ok and "복구 완료" or ("복구 실패: " .. tostring(err)))
         end, { danger = true, title = "데이터 복구" })
     end))
-    fd:Add(W.Button(db1, "무결성 검사", 90, 24, function()
-        local issues = BRL.Migration:Validate()
-        local lines = {}
-        for _, i in ipairs(issues) do lines[#lines + 1] = "[" .. i.severity .. "] " .. i.message .. " " .. tostring(i.entity or "") end
-        D.CopyText("데이터 무결성 검사", #lines > 0 and table.concat(lines, "\n") or "문제 없음")
-    end))
     local ex = W.Section(pd, "내보내기 / 가져오기 (복사·붙여넣기)")
     ex:SetPoint("TOPLEFT", 4, -286)
     local db2 = CreateFrame("Frame", nil, pd)
@@ -310,12 +297,7 @@ local function build(page)
     dn:SetPoint("TOPLEFT", 4, -406)
     T.SetTextColor(dn, "muted")
     W.Button(pd, "공유 문자열 가져오기", 140, 22, function() BRL.UIActions.ShareImport() end,
-        { tooltip = { "공략/편성/전술표/징표/메모/목표 구성 공유 문자열을 가져옵니다.", "종류는 자동으로 판별합니다." } }):SetPoint("TOPLEFT", 120, -446)
-    W.Button(pd, "오류 기록 보기", 110, 22, function()
-        local lines = {}
-        for _, e in ipairs(BRL.db.errorLog or {}) do lines[#lines + 1] = U.FormatDateTime(e.at) .. " " .. e.context .. ": " .. e.message end
-        D.CopyText("오류 기록", #lines > 0 and table.concat(lines, "\n\n") or "오류 기록 없음")
-    end):SetPoint("TOPLEFT", 4, -446)
+        { tooltip = { "공략/편성/전술표/징표/메모/목표 구성 공유 문자열을 가져옵니다.", "종류는 자동으로 판별합니다." } }):SetPoint("TOPLEFT", 4, -446)
 
     -- 세션 보관
     local pv = panel("archive")
@@ -404,10 +386,29 @@ local function build(page)
     vn:SetPoint("TOPLEFT", 4, -420)
     T.SetTextColor(vn, "muted")
 
-    -- 호환성
+    -- 진단 (자가 진단 + API/이벤트 지원 + 무결성 + 오류 기록 통합)
     local pc = panel("compat")
     pc.build = W.Label(pc, "", 12, "gold")
     pc.build:SetPoint("TOPLEFT", 4, 0)
+    pc.summary = W.Label(pc, "", 12, "text")
+    pc.summary:SetPoint("TOPLEFT", 4, -18)
+    local bd = CreateFrame("Frame", nil, pc)
+    bd:SetPoint("TOPLEFT", 4, -38)
+    bd:SetSize(880, 26)
+    local fdg = W.Flow(bd, 0, 1, 4)
+    fdg:Add(W.Button(bd, "자가 진단 (복사)", 120, 24, function() pc.last = BRL.Diagnostics:Show() UI:RequestRefresh() end,
+        { kind = "primary", tooltip = { "환경·API·이벤트·거래 기록·저장 데이터 무결성·정산 잔액·오류 기록을 한 번에 점검합니다.", "/brl 진단" } }))
+    fdg:Add(W.Button(bd, "무결성 상세", 90, 24, function()
+        local lines = {}
+        for _, i in ipairs(BRL.Migration:Validate()) do lines[#lines + 1] = "[" .. i.severity .. "] " .. i.message .. " " .. tostring(i.entity or "") end
+        D.CopyText("데이터 무결성 검사", #lines > 0 and table.concat(lines, "\n") or "문제 없음")
+    end))
+    fdg:Add(W.Button(bd, "오류 기록", 80, 24, function()
+        local lines = {}
+        for _, e in ipairs(BRL.db.errorLog or {}) do lines[#lines + 1] = U.FormatDateTime(e.at) .. " " .. e.context .. ": " .. e.message end
+        D.CopyText("오류 기록", #lines > 0 and table.concat(lines, "\n\n") or "오류 기록 없음")
+    end))
+    fdg:Add(W.Button(bd, "거래 이벤트 추적", 110, 24, function() BRL.UIActions.TradeTraces() end))
     pc.list = W.List(pc, {
         columns = {
             { title = "API / 이벤트", width = 0, render = function(r) return r.name end },
@@ -417,25 +418,12 @@ local function build(page)
             end },
         },
     })
-    pc.list:SetPoint("TOPLEFT", 4, -24)
-    pc.list:SetPoint("BOTTOMRIGHT", -4, 40)
-    local pcn = W.Paragraph(pc, "미지원 항목이 있으면 해당 기능은 안전하게 비활성화되거나 수동 입력으로 대체됩니다. 결과를 복사해 개발자에게 전달할 수 있습니다.", 600, 11)
+    pc.list:SetPoint("TOPLEFT", 4, -70)
+    pc.list:SetPoint("BOTTOMRIGHT", -4, 34)
+    local pcn = W.Paragraph(pc, "미지원 항목이 있으면 해당 기능은 안전하게 비활성화되거나 수동 입력으로 대체됩니다. 문제 보고 시 [자가 진단] 결과를 함께 전달하세요.", 880, 11)
     pcn:SetPoint("BOTTOMLEFT", 4, 8)
     T.SetTextColor(pcn, "muted")
-    W.Button(pc, "자가 진단", 80, 24, function() BRL.Diagnostics:Show() end,
-        { kind = "primary", tooltip = { "API/이벤트/거래 기록/저장 데이터/정산/오류 기록을 한 번에 점검합니다.", "/brl 진단 과 같습니다." } }):SetPoint("BOTTOMRIGHT", -90, 8)
-    W.Button(pc, "결과 복사", 80, 24, function()
-        local lines = { API.GetBuildText() }
-        for _, r in ipairs(API.RunCompatibilityCheck()) do lines[#lines + 1] = (r.ok and "O " or "X ") .. r.name .. (r.value and (" = " .. r.value) or "") end
-        D.CopyText("API 호환성 결과", table.concat(lines, "\n"))
-    end):SetPoint("BOTTOMRIGHT", -4, 8)
 
-    -- 정책 안내
-    local pp = panel("policy")
-    local pt = W.Paragraph(pp, POLICY, 860, 13)
-    pt:SetPoint("TOPLEFT", 8, -4)
-    pp.ack = W.CheckBox(pp, "위 내용을 확인했으며, 내가 플레이하는 지역의 정책을 준수하겠습니다.", function(v) BRL.DB:SetSetting("auction.policyAcknowledged", v) end)
-    pp.ack:SetPoint("TOPLEFT", 8, -170)
     page.tabs:Select("general")
 end
 
@@ -492,9 +480,12 @@ local function refresh(page)
     elseif page.tab == "compat" then
         local pc = page.panels.compat
         pc.build:SetText("클라이언트: " .. API.GetBuildText())
+        local rep = pc.last or BRL.Diagnostics:Run()
+        pc.last = rep
+        pc.summary:SetText(string.format("자가 진단 (%s): %s · %s", U.FormatClock(rep.at),
+            rep.errors > 0 and T.Color("red", "오류 " .. rep.errors .. "건") or T.Color("green", "오류 없음"),
+            rep.warnings > 0 and T.Color("yellow", "주의 " .. rep.warnings .. "건") or T.Color("green", "주의 없음")))
         pc.list:SetData(API.RunCompatibilityCheck())
-    elseif page.tab == "policy" then
-        page.panels.policy.ack:SetChecked(BRL.acct.auction.policyAcknowledged)
     end
 end
 

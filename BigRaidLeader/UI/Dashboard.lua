@@ -1,6 +1,6 @@
 -- BIG RAID LEADER - 대시보드 (공격대 운영 상태 한눈에 보기)
 local _, BRL = ...
-local T, W, Money, L, API = BRL.Theme, BRL.Widgets, BRL.Money, BRL.L, BRL.API
+local T, W, Money, L = BRL.Theme, BRL.Widgets, BRL.Money, BRL.L
 local UI = BRL.UI
 
 local TILES = {
@@ -70,51 +70,6 @@ local function build(page)
     page.liveInfo:SetPoint("TOPLEFT", 540, -y - 22)
 end
 
--- 공대장 진행 현황 요약 줄 (대시보드/HUD 공용)
-function UI.LiveSummary(session)
-    local info = {}
-    local auc = BRL.Auctions:GetActive()
-    if auc then
-        local remain = math.max(0, math.ceil((auc.endsClock or 0) - BRL.Util.Clock()))
-        info[#info + 1] = string.format("경매: %s 최고 %s%s %s", BRL.Util.StripColors(auc.itemName or "?"),
-            auc.highAmount and Money.Format(auc.highAmount) or "없음", auc.highBidder and (" (" .. API.ShortName(auc.highBidder) .. ")") or "",
-            BRL.Auctions:IsCounting(auc) and T.Color("red", "카운트 " .. remain) or (remain .. "초"))
-    else
-        local queued = session and #BRL.Auctions:Queue(session.id) or 0
-        info[#info + 1] = "경매: 진행 없음" .. (queued > 0 and (" · 대기 " .. queued .. "건") or "")
-    end
-    local rp = BRL.Recruitment:Progress()
-    if BRL.Recruitment:IsActive() then
-        info[#info + 1] = string.format("모집: 진행 중 %d/%d (부족 %d)", rp.have, rp.size, math.max(0, rp.size - rp.have))
-    end
-    local pc = BRL.CombatPrep.PullCheck and BRL.CombatPrep:PullCheck()
-    if pc then info[#info + 1] = "풀링 판정: " .. T.Color(pc.color, pc.label) .. (pc.reasons[1] and (" - " .. pc.reasons[1]) or "") end
-    local prep = BRL.CombatPrep.last
-    if prep then
-        info[#info + 1] = string.format("전투 준비(%s): 음식 누락 %d · %s 누락 %d", BRL.Util.FormatClock(prep.at), #prep.noFood, BRL.CombatPrep:MainLabel(), #prep.noMain)
-    end
-    if session then
-        local st = BRL.Settlement:ForSession(session.id)
-        if st and st.status ~= "draft" then
-            local pay = BRL.Settlement:PaymentState(st.id)
-            local done, total = 0, 0
-            for _, row in ipairs(pay.rows) do
-                total = total + 1
-                if row.remaining == 0 then done = done + 1 end
-            end
-            info[#info + 1] = string.format("분배 지급: %d/%d명 완료 · 남은 %s", done, total, Money.Format(pay.unpaid))
-        end
-        local sum = BRL.Ledger:Summary(session.id)
-        if sum.outstanding > 0 then
-            local debtors = BRL.Payments:Debtors(session.id)
-            info[#info + 1] = string.format("미수금: %s (%d명)", Money.Format(sum.outstanding), #debtors)
-        end
-    end
-    local cur = BRL.TradeTracker:GetCurrent()
-    if cur then info[#info + 1] = "거래 중: " .. (cur.partnerName or "?") end
-    return info
-end
-
 local function setTile(page, key, text, color)
     local t = page.tiles[key]
     if t then t:SetValue(text, color) end
@@ -171,7 +126,7 @@ local function refresh(page)
     local gparts = {}
     for g = 1, 8 do if (counts.byGroup[g] or 0) > 0 then gparts[#gparts + 1] = counts.byGroup[g] end end
     setTile(page, "groups", #gparts > 0 and table.concat(gparts, " · ") or "-")
-    if BRL.Buffs.needsRecheck then warnings[#warnings + 1] = "전멸 후 재도핑 점검이 필요합니다 (버프 및 야영지)." end
+    -- 도핑 누락 · 전멸 후 재점검은 오른쪽 "진행 현황"의 풀링 판정/전투 준비 줄에 표시 (중복 제거)
     -- 구성 분석: 없는 핵심 시너지 + 추천 직업
     local comp = BRL.Composition:Analyze(BRL.Roster:TargetSize())
     local core = {}
@@ -182,13 +137,6 @@ local function refresh(page)
         local recs = {}
         for i, r in ipairs(comp.recommendations) do if i <= 3 then recs[#recs + 1] = BRL.Data.ClassName(r.class) end end
         warnings[#warnings + 1] = "부족한 핵심 시너지: " .. table.concat(core, ", ") .. (#recs > 0 and (" → 추천 직업: " .. table.concat(recs, ", ")) or "")
-    end
-    local prep = BRL.CombatPrep.last
-    if prep and (#prep.noFood + #prep.noMain) > 0 then
-        warnings[#warnings + 1] = string.format("도핑 누락 (%s): 음식 %d명, %s %d명", BRL.Util.FormatClock(prep.at), #prep.noFood, BRL.CombatPrep:MainLabel(), #prep.noMain)
-    end
-    if not BRL.acct.auction.policyAcknowledged then
-        warnings[#warnings + 1] = "골드 경매 운영 전 지역별 정책을 확인하세요 (설정 > 정책 안내)."
     end
     local lines = {}
     for i, w in ipairs(warnings) do

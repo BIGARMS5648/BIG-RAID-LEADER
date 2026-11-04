@@ -135,8 +135,10 @@ function CP:Run(opts)
     local c = cfg()
     if c.withReadyCheck and API.IsInGroup() and BRL.Perm:Can("raid.command") then BRL.Readiness:Start() end
     if c.autoAnnounce and API.IsInGroup() and BRL.Perm:Can("raid.command") then BRL.ChatOut:SendLines(self:Lines(res)) end
-    BRL:Print("전투 준비 점검: 도핑 완료 %d/%d · 음식 없음 %d · %s 없음 %d%s", res.okCount, res.checked, #res.noFood, self:MainLabel(),
-        #res.noMain, #res.unavailable > 0 and (" · 확인 불가 " .. #res.unavailable) or "")
+    if opts.silent or not BRL.PrepReport then -- 결과 창을 띄우면 채팅 요약은 생략 (중복)
+        BRL:Print("전투 준비 점검: 도핑 완료 %d/%d · 음식 없음 %d · %s 없음 %d%s", res.okCount, res.checked, #res.noFood, self:MainLabel(),
+            #res.noMain, #res.unavailable > 0 and (" · 확인 불가 " .. #res.unavailable) or "")
+    end
     BRL.Events:Fire(BRL.Events.MSG.READY_CHANGED)
     BRL.Events:Fire(BRL.Events.MSG.DATA_CHANGED, "prep")
     if not opts.silent and BRL.PrepReport then BRL.PrepReport:Show(res) end
@@ -311,7 +313,9 @@ function CP:WipeRecovery(bossKey, opts)
     end
     res.wipe = wipe
     self.last = res
-    BRL:Print("전멸 복구 점검: 사망 %d명 · 영혼석 %d명 · 재버프 필요 %d종 · 도핑 누락 %d명", #wipe.dead, #wipe.soulstones, #wipe.rebuff, #res.noFood + #res.noMain)
+    if opts.silent or not BRL.PrepReport then
+        BRL:Print("전멸 복구 점검: 사망 %d명 · 영혼석 %d명 · 재버프 필요 %d종 · 도핑 누락 %d명", #wipe.dead, #wipe.soulstones, #wipe.rebuff, #res.noFood + #res.noMain)
+    end
     BRL.Events:Fire(BRL.Events.MSG.READY_CHANGED)
     BRL.Events:Fire(BRL.Events.MSG.DATA_CHANGED, "prep")
     if not opts.silent and BRL.PrepReport then BRL.PrepReport:Show(res) end

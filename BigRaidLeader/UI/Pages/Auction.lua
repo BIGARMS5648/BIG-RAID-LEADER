@@ -68,8 +68,6 @@ local function build(page)
         UI:RequestRefresh()
     end)
     page.tabs:SetPoint("TOPLEFT", 4, -28)
-    page.policy = W.Label(page, "", 11, "yellow", "RIGHT")
-    page.policy:SetPoint("TOPRIGHT", -4, -32)
     local function panel(key)
         local p = CreateFrame("Frame", nil, page)
         p:SetPoint("TOPLEFT", 0, -58)
@@ -307,18 +305,9 @@ local function build(page)
     fw:Add(W.Button(wb, "전달 표시", 70, 24, function() local aw = selAw() if aw then AU:SetDelivered(aw.id, not aw.delivered) end end, { perm = "finance.edit" }))
     fw:Add(W.Button(wb, "금액 수정", 70, 24, function() local aw = selAw() if aw then A.ChangeAwardAmount(aw) end end, { perm = "finance.edit" }))
     fw:Add(W.Button(wb, "낙찰 취소", 70, 24, function() local aw = selAw() if aw then A.CancelAward(aw) end end, { kind = "danger", perm = "finance.edit" }))
-    fw:Add(W.Button(wb, "미수금 안내", 84, 24, function()
-        local lines = { "[BIG RAID LEADER 미수금 안내]" }
-        for _, aw in ipairs(AU:Awards((BRL.Session:GetActive() or {}).id)) do
-            local st = P:AwardStatus(aw)
-            if st.outstanding > 0 then lines[#lines + 1] = aw.winnerName .. ": " .. (aw.itemName or "?") .. " 미수 " .. Money.Format(st.outstanding) end
-        end
-        if #lines == 1 then lines[2] = "미수금 없음" end
-        A.SendLines(lines, "미수금 안내")
-    end))
     fw:Add(W.Button(wb, "결과 공지", 70, 24, function() A.SendLines(AU:ResultLines((BRL.Session:GetActive() or {}).id), "경매 결과") end))
-    fw:Add(W.Button(wb, "독촉 귓속말", 84, 24, function() A.Dunning() end,
-        { perm = "finance.edit", tooltip = { "미수금이 남은 낙찰자에게 아이템/금액을 귓속말로 안내합니다.", "같은 사람에게는 60초 안에 다시 보내지 않습니다." } }))
+    fw:Add(W.Button(wb, "미수금 알림", 84, 24, function() A.Dunning() end,
+        { perm = "finance.edit", tooltip = { "미수금이 남은 낙찰자에게 각자 귓속말로 안내하거나 공격대 채팅에 목록을 공지합니다.", "같은 사람에게는 60초 안에 다시 귓속말하지 않습니다." } }))
     pw.note = W.Paragraph(pw, "낙찰 금액은 수금 예정 금액입니다. 실제 수금은 '완료 확인'된 거래를 연결해야 반영됩니다. 자동 매칭은 제안만 하며, 금액이 같아도 자동 확정하지 않습니다.", 880, 11)
     pw.note:SetPoint("BOTTOMLEFT", 4, 8)
     T.SetTextColor(pw.note, "muted")
@@ -536,7 +525,6 @@ end
 local function refresh(page)
     local session = BRL.Session:GetActive()
     local sid = session and session.id
-    page.policy:SetText(BRL.acct.auction.policyAcknowledged and "" or "골드 경매 운영 전 지역 정책 확인 필요 (설정 > 정책 안내)")
     if page.tab == "auction" then
         local pa = page.panels.auction
         local cur = pa.cur

@@ -506,6 +506,16 @@ function P:Debtors(sessionId)
     return out
 end
 
+-- 미수금 목록 공지 (공격대 채팅용)
+function P:DebtorLines(sessionId)
+    local lines = { "[BIG RAID LEADER 미수금 안내]" }
+    for _, d in ipairs(self:Debtors(sessionId)) do
+        lines[#lines + 1] = string.format("%s: %s 미수 %s", d.name, table.concat(d.items, ", "), BRL.Money.Format(d.outstanding))
+    end
+    if #lines == 1 then lines[2] = "미수금 없음" end
+    return lines
+end
+
 -- 미수금 독촉 귓속말 문구
 function P:DunningMessage(debtor)
     local items = table.concat(debtor.items, ", ")

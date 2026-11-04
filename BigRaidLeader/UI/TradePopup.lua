@@ -6,7 +6,11 @@ local TP = BRL:NewModule("TradePopup")
 
 function TP:OnEnable()
     BRL.Events:On(BRL.Events.MSG.SELF_AWARD, self, function(_, award)
-        if API.InCombat() or not award then return end
+        if not award then return end
+        if API.InCombat() then
+            BRL:Print("공대장 본인 낙찰: 전투 후 [전리품 경매 > 낙찰·수금]의 '본인 낙찰금 기록'으로 거래 로그에 남기세요.")
+            return
+        end
         BRL.Dialogs.Confirm(string.format("공대장 본인 낙찰\n%s - %s\n\n본인 지갑에서 공대 금액으로 낸 것으로 거래 로그에 지금 기록할까요?\n(나중에 [낙찰·수금]의 '본인 낙찰금 기록'으로도 할 수 있습니다)",
             award.itemName or "?", Money.Format(award.amount)), function()
             local res, err = BRL.Payments:PayAwardFromSelf(award.id)

@@ -34,28 +34,22 @@ local function build(page)
     local pc = panel("cmd")
     local s1 = W.Section(pc, "주요 명령 (공격대 경보 채널)")
     s1:SetPoint("TOPLEFT", 4, 0)
-    local grid = {
-        { "준비 확인", function() Cmd:ReadyCheck() end },
-        { "풀링 카운트다운", function() A.PullWithCheck(tonumber(pc.pullSec:GetText()) or BRL.acct.command.pullSeconds) end },
-        { "풀링 취소", function() Cmd:CancelPull() end },
-        { "공격 중지", function() Cmd:Stop() end },
-        { "후퇴", function() Cmd:Retreat() end },
-        { "전투 재정비", function() Cmd:Regroup() end },
-        { "휴식 시작", function() Cmd:BreakStart(tonumber(pc.breakMin:GetText()) or BRL.acct.command.breakMinutes) end },
-        { "휴식 종료", function() Cmd:BreakEnd() end },
-        { "전투 준비 (도핑 점검)", function() BRL.CombatPrep:Run() end },
-        { "보스 공략 안내", function()
-            local key = page.planKey ~= "default" and page.planKey or BRL.RaidProgress:GetCurrentBoss()
-            if not key then BRL:Print("오른쪽 위에서 보스를 선택하거나 현재 보스를 지정하세요.") return end
-            Cmd:BossBriefing(key)
-        end },
-    }
-    for i, g in ipairs(grid) do
-        local col = (i - 1) % 5
-        local row = math.floor((i - 1) / 5)
-        local b = W.Button(pc, g[1], 140, 34, g[2], { kind = i <= 3 and "primary" or "normal", perm = "raid.command", size = 13 })
-        b:SetPoint("TOPLEFT", 4 + col * 148, -24 - row * 40)
+    -- 지휘 명령은 HUD 와 같은 목록(UIActions.COMMANDS)을 사용한다
+    local function opts()
+        return { pull = tonumber(pc.pullSec:GetText()), breakMin = tonumber(pc.breakMin:GetText()), bossKey = page.planKey }
     end
+    local n = 0
+    for _, c in ipairs(A.COMMANDS) do
+        if c.label then
+            n = n + 1
+            local col = (n - 1) % 5
+            local row = math.floor((n - 1) / 5)
+            local b = W.Button(pc, c.label, 140, 34, function() c.run(opts()) end,
+                { kind = c.primary and "primary" or "normal", perm = c.perm ~= false and "raid.command" or nil, size = 13 })
+            b:SetPoint("TOPLEFT", 4 + col * 148, -24 - row * 40)
+        end
+    end
+    W.Label(pc, "같은 명령은 공대장 HUD(/brl hud)에서도 실행할 수 있습니다.", 11, "muted"):SetPoint("TOPLEFT", 160, -2)
     local f1 = W.Flow(pc, 4, 112, 6)
     f1:AddLabel("풀링(초)", 54)
     pc.pullSec = f1:Add(W.EditBox(pc, 40, 22, { numeric = true }))
@@ -183,8 +177,8 @@ local function build(page)
         UI:RequestRefresh()
     end, { kind = "primary" }))
     fn:Add(W.Button(fn.parent, "채팅 출력", 80, 24, function() A.SendLines(Cmd:NoteLines(page.planKey, page.noteCat), "전술 메모 출력") end))
-    fn:Add(W.Button(fn.parent, "복사(공유 텍스트)", 120, 24, function() D.CopyText("전술 메모", pn.area:GetText()) end))
-    fn:Add(W.Button(fn.parent, "공유 문자열", 84, 24, function() A.ShareMenu("notes", page.planKey) end))
+    fn:Add(W.Button(fn.parent, "공유", 60, 24, function() A.ShareMenu("notes", page.planKey, "전술 메모", function() return pn.area:GetText() end) end,
+        { tooltip = { "텍스트로 복사(디스코드 등) / 공유 문자열 내보내기·가져오기" } }))
     local tip = W.Label(fn.parent, "★ 또는 ! 로 시작하는 줄은 강조 표시됩니다.", 11, "muted")
     fn:Add(tip, 300)
 

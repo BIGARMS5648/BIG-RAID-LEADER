@@ -29,12 +29,12 @@ local function errorsSince(BRL, n)
     return out
 end
 
-T.test("메인 창 열기 + 15개 메뉴 생성/갱신", function()
+T.test("메인 창 열기 + 14개 메뉴 생성/갱신 (준비 상태 + 버프 → 전투 준비)", function()
     local BRL = seed()
     local before = #BRL.errors
     BigRaidLeader_ToggleUI()
     T.ok(BRL.UI.frame and BRL.UI.frame:IsShown(), "창 열림")
-    T.eq(#BRL.UI.pageOrder, 15, "메뉴 15개")
+    T.eq(#BRL.UI.pageOrder, 14, "메뉴 14개")
     for _, def in ipairs(BRL.UI.pageOrder) do
         BRL.UI:Open(def.key)
         BRL.UI:Refresh()

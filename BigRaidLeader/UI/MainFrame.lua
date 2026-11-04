@@ -192,8 +192,13 @@ end
 ---------------------------------------------------------------------------
 -- 화면 전환 / 갱신
 ---------------------------------------------------------------------------
-function UI:Open(key)
+-- 통합된 화면의 옛 이름 → (화면, 탭)
+UI.PAGE_ALIAS = { buffs = { "ready", "buffs" }, camps = { "ready", "camps" } }
+
+function UI:Open(key, tab)
     self:Create()
+    local alias = self.PAGE_ALIAS[key]
+    if alias then key, tab = alias[1], tab or alias[2] end
     if not self.pages[key] then key = "dashboard" end
     self.current = key
     BRL.char.ui.lastPage = key
@@ -217,6 +222,7 @@ function UI:Open(key)
         BRL.SafeCall("화면 생성:" .. key, def.build, page)
     end
     def.frame:Show()
+    if tab and def.frame.tabs then def.frame.tabs:Select(tab) end
     W.ClosePopup()
     if not self.frame:IsShown() then self.frame:Show() else self:Refresh() end
 end
