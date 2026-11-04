@@ -16,7 +16,7 @@
 | TOC 접미사 | `_Forever` 는 `_Camelot` 의 별칭 (Camelot = 포에버 내부 코드명). 접미사 없는 `BigRaidLeader.toc` 도 Interface 가 맞으면 로드됨 | Warcraft Wiki TOC 형식 요약 |
 | API 계열 | Classic 이 아닌 **Mainline(미드나이트 12.x) API** 사용, Secret Value 포함 | 2026-09 애드온 개발자 대상 공지 요약 |
 | Secret Value | 전투/제한 상황에서 일부 값이 Lua 로 "비밀 값"으로 전달되어 비교·연산·저장 불가. `issecretvalue(v)` 로 판별 | Warcraft Wiki "Secret Values" 요약 |
-| 채팅 잠금 | `C_ChatInfo.InChatMessagingLockdown()` 이 참인 동안(우두머리 전투, 쐐기, PvP 경기) 애드온의 채팅/애드온 메시지 전송 차단, 수신 채팅 내용은 Secret Value | 12.0/12.0.5/12.0.7 API 변경 요약, 애드온 개발 노트 |
+| 채팅 잠금 | `C_ChatInfo.InChatMessagingLockdown()` 이 참인 동안(우두머리 전투, 쐐기, PvP 경기) 애드온의 채팅 메시지 전송 차단, 수신 채팅 내용은 Secret Value | 12.0/12.0.5/12.0.7 API 변경 요약, 애드온 개발 노트 |
 | GUID | 2026-10 이후 다른 플레이어 GUID 난독화 | 커뮤니티 타임라인 요약 (미확인) |
 | 전투 로그 | 전투 로그 기반 트리거 차단 | 커뮤니티 자료 |
 
@@ -48,12 +48,16 @@
 | `GetPlayerTradeMoney`, `GetTargetTradeMoney` | 내가/상대가 제시한 골드(코퍼) | 지원 | — |
 | `GetTradePlayerItemInfo/Link`, `GetTradeTargetItemInfo/Link` (`MAX_TRADE_ITEMS`, `TRADE_ENCHANT_SLOT` 제외) | 거래 아이템 | 지원 | — |
 | `UnitName("NPC")`, `TradeFrameRecipientNameText` | 거래 상대 | 지원 | 프레임 텍스트 |
+| `C_Item.GetItemCount(id, false, false)` / `GetItemCount` + `BAG_UPDATE_DELAYED` | **아이템 거래 가방 수량 교차 검증** (2.0) | 지원 예상 | 없으면 아이템 검증 생략(메시지로만 판정) |
+| `SetTradeMoney(copper)` | 거래 창 정보 패널 [분배금 입력] — 내 골드 칸만 채움, **수락은 하지 않음** | 미확인 (보호 함수일 수 있음) | `pcall` 실패 시 "직접 입력" 안내 |
+| `TradeFrame` | 정보 패널 부착 위치 | 지원 예상 | 없으면 화면 중앙 오른쪽에 표시 |
 
 판정 규칙 (`Modules/TradeTracker.lua`):
 - 완료 메시지 → **완료 확인** (골드가 오간 경우 실제 골드 변화가 일치하면 `message+money`)
 - 완료 메시지 없음 + 실제 골드 변화가 제시 금액과 정확히 일치 → **완료 확인** (`money`)
 - 취소 신호 → **취소**, 골드 제시가 있었는데 골드 변화 없음 → **취소** (`money_unchanged`)
-- 그 외(아이템만 거래 + 메시지 없음, 완료/취소 신호 충돌, UI 재시작으로 중단) → **확인 불가** (합산 제외, 수동 확인 가능)
+- 골드 없는 아이템 거래: 가방 수량 변화가 예상과 일치 → **완료 확인** (`message+items` / 메시지 누락 시 `items`), 변화 없음 → **취소** (`items_unchanged`)
+- 그 외(수량 확인 불가 + 메시지 없음, 완료/취소 신호 충돌, UI 재시작으로 중단) → **확인 불가** (합산 제외, 수동 확인 가능)
 - 판정이 끝난 뒤 10초 안에 늦은 완료 메시지가 오면 확인 불가 → 완료로 승격
 - 같은 거래 세션은 고유 ID 로 한 번만 기록(멱등), 같은 금액의 반복 거래는 각각 기록
 
@@ -69,7 +73,8 @@
 | `C_PartyInfo.InviteUnit` / `InviteUnit`, `C_PartyInfo.ConvertToRaid` | 지원자 초대 (클릭 시에만) | 지원 | — |
 | `DoReadyCheck`, `READY_CHECK`, `READY_CHECK_CONFIRM`, `READY_CHECK_FINISHED`, `GetReadyCheckStatus` | 준비 확인 | 지원(12.0.5부터 전투 중 호출 불가) | 전투 중 차단 |
 | `C_PartyInfo.DoCountdown(sec)` | 공식 풀링 카운트다운 / 0=취소 | 지원(전투 중 불가) | 채팅 카운트다운 |
-| `ENCOUNTER_START`, `ENCOUNTER_END` | 보스 시도/처치/전멸 자동 기록, 미확인 보스 이름 갱신 | 지원 | 수동 기록 |
+| `ENCOUNTER_START`, `ENCOUNTER_END` | 보스 시도/처치/전멸 자동 기록, 미확인 보스 이름 갱신, **전멸 복구 점검 트리거**(2.0) | 지원 | 수동 기록, `/brl 복구` |
+| `PLAYER_REGEN_ENABLED` | 전멸 후 전투 종료 시점에 사망자/영혼석/재버프/도핑 점검 | 지원 | — |
 | `GetInventoryItemDurability` | 내 내구도 | 지원 | — |
 | `C_UnitAuras.GetAuraDataByIndex` | 버프 점검 / **전투 준비 도핑 점검**(음식·영약·비약, 주문 ID + 이름 키워드, 전투 밖에서만) | 지원 | `UnitBuff`, Secret → 확인 불가 |
 | `GetRealZoneText`, `GetInstanceInfo` | 인스턴스 미입장 판단, 공격대 추정 | 지원 | — |
@@ -81,7 +86,6 @@
 | `C_ChatInfo.SendChatMessage` (11.2+) / `SendChatMessage` | 공지/결과 출력 (255바이트 UTF-8 안전 분할) | 지원 | 어느 쪽이든 존재하는 함수 사용 |
 | `C_ChatInfo.InChatMessagingLockdown` | 채팅 잠금 확인 | 12.x 지원 | 없으면 잠금 없음으로 간주 |
 | 공개 채널/일반/외치기 전송 | 모집 문구 | 하드웨어 이벤트 필요 | **버튼 클릭 시점에 즉시 전송**(대기열 사용 안 함) |
-| `C_ChatInfo.RegisterAddonMessagePrefix`, `C_ChatInfo.SendAddonMessage`, `CHAT_MSG_ADDON` | 애드온 간 공유 (접두사 `BRL1`, 탭 구분, 240바이트 분할) | 지원(잠금 중 차단) | 대기열 후 재전송, 실패해도 로컬 기능 유지 |
 | `CHAT_MSG_RAID/RAID_LEADER/RAID_WARNING/PARTY/PARTY_LEADER/WHISPER` | 채팅 입찰 인식 | 지원(잠금 중 Secret) | **수동 입찰 입력** |
 | `CHAT_MSG_SYSTEM` + `RANDOM_ROLL_RESULT` | 주사위 결과 (한국어 조사 처리) | 지원 | 수동 분배 |
 | `GetChannelList` | 모집 채널 목록 | 지원 | 길드/일반/외치기 |
@@ -136,7 +140,12 @@
 11. `ENCOUNTER_START/END` 의 encounterID/이름 제공 여부 (보스 이름 자동 갱신)
 12. `RANDOM_ROLL_RESULT` 한국어 문자열 형식
 13. 도핑 버프(음식/영약/비약)의 실제 이름과 주문 ID (전투 준비 점검은 오리지널 ID + 한국어/영어 키워드 사용)
+14. `C_Item.GetItemCount` 가 거래 창에 올린(잠긴) 아이템을 가방 수량에 포함하는지, 거래 완료 후 `BAG_UPDATE_DELAYED` 가 오는지
+15. `SetTradeMoney` 를 애드온 버튼 클릭으로 호출할 수 있는지 (보호 함수면 "직접 입력" 안내로 동작)
+16. 사망한 공대원의 영혼석 버프(`영혼석 부활`)를 `C_UnitAuras` 로 읽을 수 있는지
+17. `UnitIsDeadOrGhost` 가 전투 종료 직후(1.5초) 정확한지
 
+> 2.0 부터 애드온 간 통신(`SendAddonMessage`/`CHAT_MSG_ADDON`)을 사용하지 않습니다 (공격대장 전용).
 > 구성 분석·추천 직업(1.1.0)은 게임 API 를 추가로 사용하지 않고, 공대원 직업(`GetRaidRosterInfo`)과 애드온에서 지정한 역할만으로 계산합니다.
 > 시너지 데이터(`Data/Synergy.lua`)는 오리지널 기준이라 포에버의 직업 변경 사항은 목표 구성/사용 불가 직업 설정으로 보정합니다.
 

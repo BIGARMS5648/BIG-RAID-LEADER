@@ -15,15 +15,17 @@ BigRaidLeader/              ← 게임에 설치하는 애드온 폴더
     Database.lua            SavedVariables(BigRaidLeaderDB), 기본값, 레코드 헬퍼, 감사 로그
     Serializer.lua          안전한 직렬화(코드 실행 없음), Base64, 내보내기/가져오기
     Migration.lua           스키마 마이그레이션, 무결성 검증, 백업/복구
-    Permissions.lua         권한(공대장/부공대장/공대원/개인/확인 불가)
+    Permissions.lua         권한 (공대장 전용: 그룹 안 공대장 / 그룹 밖만 운영 가능, 그 외 잠김)
     Init.lua                ADDON_LOADED/PLAYER_LOGIN 초기화, /brl 명령 (TOC 마지막)
   Data/                     Classes, Raids, Bosses, Buffs(야영지·도핑 포함), Items, Synergy(구성 시너지·목표 구성)
   Modules/                  비즈니스 로직 (UI 비의존)
     ChatOut  Session  TradeTracker  TradeJournal  Auctions  Bids  Payments  Ledger  Settlement  Reports
     Roles  Roster  Groups  Readiness  Buffs  Campsites  Command  BossPlans  RaidProgress
-    LootDistribution  Statistics  Sync  Recruitment  Composition(구성 분석·추천)  CombatPrep(전투 준비 도핑 점검)
+    LootDistribution  Statistics(구매자 기록 포함)  Recruitment  Composition(구성 분석·추천)
+    CombatPrep(도핑 점검·풀링 판정·전멸 복구)  Diagnostics(자가 진단)  Archive(세션 보관)  Share(공유 문자열)
   UI/
-    Theme  Widgets  Dialogs  MainFrame  Minimap  MarkerBar  Actions  TradePopup  PrepReport  Dashboard
+    Theme  Widgets  Dialogs  MainFrame  Minimap  MarkerBar  Actions  TradePopup  TradeAssist(거래 창 정보 패널)
+    HUD(공대장 HUD)  PrepReport  Dashboard
     Pages/  Recruit Roster Groups Roles Ready Buffs Command Boss Auction Trades Ledger Settlement Stats Settings
 Tests/                      자동 테스트 (배포 제외)
   mock_wow.lua              WoW API 모의 환경
@@ -49,7 +51,7 @@ dist/                       배포 ZIP
 | 키 | 구조 (명세 20장 대응) |
 |---|---|
 | `schemaVersion`, `nextId` | 스키마 버전(2), ID 카운터 |
-| `account` | **AccountSettings** (거래/경매/정산/동기화/버프/지휘 설정) |
+| `account` | **AccountSettings** (거래/경매/정산/버프/지휘/도핑/보관/HUD 설정) |
 | `characters[이름-서버]` | **CharacterSettings** (창 위치/크기/배율, 이월 잔돈, 개인 메모) |
 | `sessions[id]` | **RaidSession** (이름, 공격대, 인원, 소유자, 참가자 `attendance[key]` = **CurrentRaidMember** 기록) |
 | `raidOps.groupPlan`, `groupTemplates`, `pinned` | **RaidGroupLayout** |
@@ -67,6 +69,9 @@ dist/                       배포 ZIP
 | `audit[]` | **AuditEvent** (누가/언제/무엇을/이전·이후/사유) |
 | `lootRecords[id]`, `loot.dkp`, `loot.epgp`, `loot.priorities` | 기타 분배 |
 | `activeTrade` | 진행 중 거래 (UI 재시작 복구용) |
+| `tradeTraces[]` | 최근 거래 10건 이벤트 추적 (기록 안 된 빈 거래 포함) |
+| `archives[sessionId]` | 보관된 세션: 직렬화 문자열 `data` + `checksum` + 요약(`summary.buyers` 등). 복원 시 원래 ID 로 되돌림 |
+| `raidOps.activePlanKey/activePlanVersion` | [보스 준비 적용] 후 전술표/지휘/버프 화면이 따라가는 활성 전술표 |
 | `backups[]` | 직렬화 스냅샷 + 체크섬 (최대 5) |
 
 ### 무결성 규칙
@@ -99,6 +104,14 @@ TRADE_CLOSED ─▶ 판정 대기(pending) ──┬─ 취소 신호 ───�
 ```
 최종 내용은 실제 골드 변화와 일치하는 스냅샷(acceptSnap → live → lastNonEmpty 순)을 사용합니다.
 
+**아이템 수량 교차 검증** (2.0): 수락 시점 스냅샷의 아이템별 예상 증감(받은 수 − 준 수)과 가방 수량(`C_Item.GetItemCount`)을 기록합니다.
+창이 닫힌 뒤 `BAG_UPDATE_DELAYED` 마다 다시 비교해, 골드가 없는 거래에서
+- 완료 메시지 + 수량 일치 → `message+items` (메시지만 오고 가방 갱신 전이면 최대 1초/유예 시간까지 대기)
+- 메시지 없음 + 수량 일치 → 완료 `items` / 메시지 없음 + 변화 없음 → 취소 `items_unchanged`
+- 수량을 읽을 수 없거나(미지원/재시작 복구) 예상 증감이 모두 0 이면 사용하지 않음
+
+판정 결과와 이벤트 순서는 `tradeTraces` 에 최근 10건 보관됩니다 (`Tracker:FormatEvents`).
+
 ## 5b. 구성 분석 알고리즘 (`Modules/Composition.lua`)
 
 - 공대원(+선택한 지원자)을 **직업×역할 집계**로 바꾼 뒤 시너지마다 `제공자 수 / 필요 수`를 계산합니다.
@@ -108,6 +121,18 @@ TRADE_CLOSED ─▶ 판정 대기(pending) ──┬─ 취소 신호 ───�
 - 추천 = 직업별로 가능한 역할 중 점수 증가가 가장 큰 역할을 골라 증가량 순 정렬, 확보가 좋아지는 시너지를 이유로 표시
 - 남은 자리 계획 = 추천 1순위를 하나씩 추가하는 탐욕적 반복 (빠른 경로 `Score` 사용, 40인 39자리 ≈ 35ms)
 - 같은 입력(공대원 직업·역할·파티, 설정, 야영지 상태)이면 결과를 캐시합니다.
+
+## 5c. 세션 보관 (`Modules/Archive.lua`)
+
+- `Collect(sessionId)`: 세션 + sessionId 를 가진 auctions/awards/trades/ledger/settlements/reports/lootRecords,
+  해당 경매의 bids, 해당 정산의 payouts, **양쪽 끝이 모두 세션 안**인 auctionAllocations/payoutAllocations
+- 한쪽만 세션 안인 연결(교차 연결)이나 장부 항목이 있으면 보관하지 않음. 미수금/분배 미지급/활성·미종료 세션도 거부(`force` 로 미수금 무시)
+- 직렬화 → 역직렬화 검증 성공 후에만 원본 제거, `tradeOrder` 정리. 복원은 ID 충돌 검사 후 원래 ID 로 삽입하고 `tradeOrder` 를 시각 순으로 재정렬
+
+## 5d. 풀링 판정 (`CombatPrep:PullCheck`)
+
+`go < caution < stop` 중 가장 높은 단계. 보류: 사망자, 준비 안 됨. 주의: 준비 확인 미실시/진행/무응답/5분 경과, 오프라인/다른 지역,
+도핑 점검 없음/10분 경과/누락, 필수 버프 누락, 탱커 미지정/힐러 없음(직업 추정이므로 주의), 전멸 후 재점검, 내 내구도 낮음. 전투 중이면 즉시 보류.
 
 ## 6. 테스트
 
@@ -119,6 +144,7 @@ luacheck BigRaidLeader                           # 정적 검사 (.luacheckrc)
 - `T.fresh({ group = T.raid(20), role = ... })` 로 데이터/상태 초기화
 - `MOCK.Fire(event, ...)` 로 게임 이벤트 주입, `MOCK.Advance(sec)` 로 시간 진행
 - `MOCK.trade`, `MOCK.money`, `MOCK.combat`, `MOCK.lockdown`, `MOCK.SECRET` 으로 상황 구성
+- `MOCK.bags[itemID]`(가방 수량), `MOCK.noItemCount`(수량 API 미지원), `MOCK.protectedTradeMoney`(SetTradeMoney 차단), `MOCK.tradeMoneySet`
 
 ## 7. 기능 추가 가이드
 
