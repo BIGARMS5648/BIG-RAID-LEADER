@@ -136,6 +136,7 @@ local function build(page)
         if #items == 0 then items[1] = { value = false, text = "(없음)" } end
         return items
     end, function(v) if v then R:LoadTemplate(v, page.planKey) end end, { placeholder = "전술표 불러오기" }))
+    f:Add(W.Button(f.parent, "공유", 50, 24, function() A.ShareMenu("roles", page.planKey, "전술표") end))
     f:Add(W.Button(f.parent, "전술표 저장", 90, 24, function()
         D.Input("전술표 저장", { { key = "name", label = "이름", type = "text", required = true } }, function(v) return R:SaveTemplate(v.name, page.planKey) end)
     end, { perm = "raid.plan" }))
@@ -143,6 +144,7 @@ end
 
 local function refresh(page)
     page.plan:SetItems(UI.PlanItems())
+    UI.FollowActivePlan(page, function(key) page.planKey = key page.plan:SetValue(key, true) end)
     page.duties:SetData(R.DUTIES, true)
     local function entries(backup)
         local out = {}

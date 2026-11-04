@@ -314,6 +314,16 @@ function UI.PlanItems()
     return items
 end
 
+-- [보스 준비 적용] 후 전술표/징표/메모/필수 버프 화면이 활성 보스를 따라가게 함
+function UI.FollowActivePlan(page, apply)
+    local ops = BRL.db.raidOps
+    local v = ops.activePlanVersion or 0
+    if page.seenPlanVersion ~= v then
+        page.seenPlanVersion = v
+        if v > 0 then apply(ops.activePlanKey or "default") end
+    end
+end
+
 -- 페이지 하단 버튼 줄
 function UI.BottomBar(page, x, y)
     local bar = CreateFrame("Frame", nil, page)

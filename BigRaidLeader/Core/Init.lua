@@ -46,6 +46,8 @@ local HELP = {
     "/brl 백업 - 데이터 백업 / /brl 검사 - 데이터 무결성 검사",
     "/brl 호환성 - API 지원 여부 확인 / /brl 진단 - 자가 진단 (문제 보고용)",
     "/brl 추적 - 최근 거래 이벤트 추적 / /brl 보관 - 오래된 종료 세션 보관",
+    "/brl hud - 공대장 HUD 열기/닫기 / /brl 판정 - 풀링 판정 / /brl 독촉 - 미수금 독촉 귓속말",
+    "/brl 복구 - 전멸 복구 점검 (사망자·영혼석·재버프·도핑) / /brl 보스준비 - 현재 보스 준비 적용",
 }
 
 local PAGE_ALIASES = {
@@ -151,6 +153,31 @@ function Init:Slash(msg)
         BRL:Print("미지원 항목만 표시했습니다. 전체 목록: 설정 > 호환성")
         return
     end
+    if lower == "hud" or cmd == "허드" then
+        BRL.HUD:Toggle()
+        return
+    end
+    if cmd == "판정" or lower == "pullcheck" then
+        for _, l in ipairs(BRL.CombatPrep:PullCheckLines()) do BRL:Print(l) end
+        return
+    end
+    if cmd == "독촉" or lower == "dun" then
+        local s = BRL.Session:GetActive()
+        if not s then BRL:Print("공격대 세션이 없습니다.") return end
+        local sent, skipped = BRL.Payments:SendDunning(s.id)
+        BRL:Print("독촉 귓속말 %d명 전송%s", sent, skipped > 0 and (" (제외 " .. skipped .. "명)") or "")
+        return
+    end
+    if cmd == "복구" or lower == "wipe" then
+        BRL.CombatPrep:WipeRecovery()
+        return
+    end
+    if cmd == "보스준비" or lower == "bossprep" then
+        local key = BRL.RaidProgress:GetCurrentBoss()
+        if not key then BRL:Print("현재 보스가 없습니다. 공략 화면에서 보스를 선택해 [준비 적용]을 누르세요.") return end
+        if BRL.UIActions then BRL.UIActions.ApplyBossPrep(key) end
+        return
+    end
     if cmd == "진단" or lower == "diag" then
         BRL.Diagnostics:Show()
         return
@@ -197,6 +224,8 @@ _G.BINDING_NAME_BRL_AUCTION = "경매 화면 열기"
 _G.BINDING_NAME_BRL_COMBATPREP = "전투 준비 (도핑 점검)"
 _G.BINDING_NAME_BRL_AUCTIONCOUNT = "경매 카운트"
 _G.BINDING_NAME_BRL_AUCTIONCOUNTCANCEL = "경매 카운트 취소"
+_G.BINDING_NAME_BRL_HUD = "공대장 HUD 열기/닫기"
+_G.BINDING_NAME_BRL_PULLCHECK = "풀링 판정"
 
 function _G.BigRaidLeader_Binding(action)
     if action == "READY" then
@@ -215,5 +244,9 @@ function _G.BigRaidLeader_Binding(action)
         BRL.CombatPrep:Run()
     elseif action == "AUCTION" then
         if BRL.UI then BRL.UI:Open("auction") end
+    elseif action == "HUD" then
+        BRL.HUD:Toggle()
+    elseif action == "PULLCHECK" then
+        if BRL.UIActions then BRL.UIActions.ShowPullCheck() end
     end
 end

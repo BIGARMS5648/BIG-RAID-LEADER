@@ -51,6 +51,7 @@ Modules\Composition.lua
 Modules\CombatPrep.lua
 Modules\Diagnostics.lua
 Modules\Archive.lua
+Modules\Share.lua
 UI\Theme.lua
 UI\Widgets.lua
 UI\Dialogs.lua
@@ -60,6 +61,7 @@ UI\MarkerBar.lua
 UI\Actions.lua
 UI\TradePopup.lua
 UI\TradeAssist.lua
+UI\HUD.lua
 UI\PrepReport.lua
 UI\Dashboard.lua
 UI\Pages\Recruit.lua

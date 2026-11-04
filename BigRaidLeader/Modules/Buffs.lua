@@ -88,6 +88,11 @@ function Buffs:Analyze(auras)
             res.consumables[g.key] = entry
         end
     end
+    -- 영혼석 보유 (전멸 복구: 자가 부활 가능 인원)
+    local ssKws = self:Keywords("SOULSTONE", BRL.Data.SoulstoneKeywords)
+    for _, a in ipairs(auras) do
+        if matchesKeywords(a.name, ssKws) then res.soulstone = true break end
+    end
     -- 야영지 효과가 직업 버프를 대체
     if BRL.acct.buffs.campReplacesClassBuff then
         for _, c in ipairs(BRL.Data.CampFacilities) do

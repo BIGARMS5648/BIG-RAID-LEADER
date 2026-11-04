@@ -2,6 +2,7 @@
 -- 기본 데이터(Data/Bosses.lua) 위에 공대장이 편집한 내용(db.bossPlans)을 덮어쓴다.
 -- 타임라인은 공대장의 수동 시작/단계 진행 기준이며 전투 정보를 임의로 읽어 자동 판단하지 않는다.
 local _, BRL = ...
+local DB = BRL.DB
 local U, API = BRL.Util, BRL.API
 
 local BP = BRL:NewModule("BossPlans")
@@ -367,6 +368,64 @@ function BP:OnEncounterEnd(_, encounterID, encounterName, _, _, success)
         BRL.RaidProgress:EndAttempt(key, success == 1 or success == true, true)
     end
     self:StopTimer()
+end
+
+---------------------------------------------------------------------------
+-- 보스 준비 적용: 현재 보스 지정 + 보스 편성 템플릿 불러오기 + 전술표/징표/메모/필수 버프 화면이
+-- 이 보스를 따라가도록 활성 전술표 지정. 실제 파티 이동은 공대장 확인 후(UI) Groups:Apply 로 한다.
+---------------------------------------------------------------------------
+function BP:GroupTemplateName(bossKey)
+    local p = self:Get(bossKey)
+    local templates = BRL.db.raidOps.groupTemplates
+    for _, name in ipairs({ "보스:" .. bossKey, p and ("보스:" .. p.name) or nil }) do
+        if name and templates[name] then return name end
+    end
+    return nil
+end
+
+function BP:SaveGroupTemplate(bossKey)
+    local p = self:Get(bossKey)
+    if not p then return false end
+    return BRL.Groups:SaveTemplate("보스:" .. p.name), "보스:" .. p.name
+end
+
+function BP:ActivePlanKey()
+    return BRL.db.raidOps.activePlanKey or "default"
+end
+
+function BP:SetActivePlan(planKey)
+    local ops = BRL.db.raidOps
+    ops.activePlanKey = planKey or "default"
+    ops.activePlanVersion = (ops.activePlanVersion or 0) + 1
+end
+
+function BP:ApplyPrep(bossKey)
+    if not BRL.Perm:Require("raid.plan") then return nil, "권한 없음" end
+    local p = self:Get(bossKey)
+    if not p then return nil, "보스 정보 없음" end
+    local res = { bossKey = bossKey, name = p.name }
+    BRL.RaidProgress:SetCurrentBoss(bossKey)
+    self:SetActivePlan(bossKey)
+    local tpl = self:GroupTemplateName(bossKey)
+    if tpl and BRL.Groups:LoadTemplate(tpl) then res.groupTemplate = tpl end
+    local assigned = 0
+    for _, d in ipairs(BRL.Roles.DUTIES) do assigned = assigned + #BRL.Roles:GetAssignees(bossKey, d.key) end
+    res.duties = assigned
+    res.markers = U.Count(BRL.Command:GetMarkerPlan(bossKey))
+    res.required = #BRL.Buffs:RequiredList(bossKey)
+    res.warnings = BRL.Roles:Validate(bossKey)
+    DB:Audit("boss.prep", "boss", bossKey, { groupTemplate = res.groupTemplate })
+    changed(bossKey)
+    BRL.Events:Fire(BRL.Events.MSG.DATA_CHANGED, "plan")
+    return res
+end
+
+function BP:PrepLines(res)
+    local lines = { "[" .. res.name .. " 준비 적용]" }
+    lines[#lines + 1] = res.groupTemplate and ("편성: '" .. res.groupTemplate .. "' 불러옴 (실제 파티 적용은 확인 후)") or "편성: 보스 편성 템플릿 없음 (편성 화면에서 '보스:" .. res.name .. "' 이름으로 저장하면 자동으로 불러옵니다)"
+    lines[#lines + 1] = string.format("전술 임무 %d건 · 징표 규칙 %d개 · 필수 버프 %d종", res.duties, res.markers, res.required)
+    for _, w in ipairs(res.warnings or {}) do lines[#lines + 1] = "확인: " .. w end
+    return lines
 end
 
 ---------------------------------------------------------------------------

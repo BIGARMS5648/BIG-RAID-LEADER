@@ -1,6 +1,6 @@
 -- BIG RAID LEADER - UI 공용 동작 (대화상자 흐름)
 local _, BRL = ...
-local D, Money, API, U = BRL.Dialogs, BRL.Money, BRL.API, BRL.Util
+local D, Money, API, U, T = BRL.Dialogs, BRL.Money, BRL.API, BRL.Util, BRL.Theme
 
 local A = {}
 BRL.UIActions = A
@@ -242,6 +242,76 @@ function A.TradeDetail(tr)
             type(h.old) == "table" and "(표)" or tostring(h.old), type(h.new) == "table" and "(표)" or tostring(h.new), h.reason and ("- " .. h.reason) or "")
     end
     D.CopyText("거래 상세 - " .. (tr.partnerName or "?"), U.StripColors(table.concat(lines, "\n")))
+end
+
+-- 풀링: 판정이 "보류"면 사유를 보여주고 확인 후 진행 (공대장 판단 우선)
+function A.PullWithCheck(seconds)
+    seconds = seconds or BRL.acct.command.pullSeconds
+    local pc = BRL.CombatPrep:PullCheck()
+    if pc.verdict == "stop" and pc.label ~= "전투 중" then
+        D.Confirm("풀링 보류 사유:\n· " .. table.concat(pc.reasons, "\n· ") .. "\n\n그래도 " .. seconds .. "초 풀링을 시작할까요?", function()
+            BRL.Command:Pull(seconds)
+        end, { danger = true, title = "풀링 판정: 보류", acceptText = "그래도 풀링" })
+        return false
+    end
+    return BRL.Command:Pull(seconds)
+end
+
+-- 풀링 판정 결과 창
+function A.ShowPullCheck()
+    local pc = BRL.CombatPrep:PullCheck()
+    local body = T.Color(pc.color, pc.label) .. (#pc.reasons > 0 and ("\n\n· " .. table.concat(pc.reasons, "\n· ")) or "\n\n준비 확인 · 도핑 · 역할 모두 정상입니다.")
+    D.Confirm(body, function() A.SendLines(BRL.CombatPrep:PullCheckLines(pc), "풀링 판정") end,
+        { title = "풀링 판정", acceptText = "공격대에 알리기", cancelText = "닫기" })
+    return pc
+end
+
+-- 보스 준비 적용 (현재 보스 + 보스 편성/전술표/징표/메모/필수 버프)
+function A.ApplyBossPrep(bossKey)
+    if not bossKey then BRL:Print("보스를 선택하세요.") return end
+    local res, err = BRL.BossPlans:ApplyPrep(bossKey)
+    if not res then BRL:Print(tostring(err)) return end
+    local text = table.concat(BRL.BossPlans:PrepLines(res), "\n")
+    if res.groupTemplate and BRL.Perm:Can("raid.groups.apply") and API.IsInRaid() then
+        D.Confirm(text .. "\n\n불러온 편성대로 실제 파티를 이동할까요?", function() BRL.Groups:Apply() end,
+            { title = "보스 준비 적용", acceptText = "파티에 적용", cancelText = "나중에" })
+    else
+        D.Message(text, "보스 준비 적용")
+    end
+    return res
+end
+
+-- 공유 문자열 메뉴 (내보내기/가져오기)
+function A.ShareMenu(kind, key, title)
+    local def = BRL.Share.KINDS[kind]
+    if not def then return end
+    D.Select((title or def.name) .. " 공유", {
+        { value = "export", text = "공유 문자열 만들기 (내보내기)" },
+        { value = "import", text = "공유 문자열 붙여넣기 (가져오기)" },
+    }, function(v)
+        if v == "export" then
+            local str, label = BRL.Share:Export(kind, key)
+            if not str then D.Message(tostring(label)) return end
+            D.CopyText(def.name .. " 공유 - " .. tostring(label), str, { hint = "Ctrl+C 로 복사해 다른 공대장에게 전달하세요. 금융 기록은 포함되지 않습니다." })
+        else
+            A.ShareImport(key)
+        end
+    end)
+end
+
+function A.ShareImport(targetKey)
+    D.Paste("공유 문자열 가져오기", function(text)
+        local payload, desc = BRL.Share:Preview(text)
+        if not payload then return false, desc end
+        local where = targetKey and (payload.kind == "roles" or payload.kind == "markers" or payload.kind == "notes")
+            and ("\n적용 대상: " .. tostring(targetKey) .. " (현재 화면의 전술표)") or ""
+        D.Confirm(desc .. where .. "\n\n가져올까요? (가져오기 전 자동 백업)", function()
+            local useKey = (payload.kind == "roles" or payload.kind == "markers" or payload.kind == "notes") and targetKey or nil
+            local ok, res = BRL.Share:Apply(payload, useKey)
+            D.Message(ok and ("가져오기 완료: " .. tostring(res)) or ("가져오기 실패: " .. tostring(res)))
+        end, { title = "공유 문자열 가져오기" })
+        return true
+    end, "BRL:share_ 로 시작하는 문자열을 붙여넣으세요.")
 end
 
 -- 미수금 독촉 귓속말

@@ -149,6 +149,8 @@ local function build(page)
         if #items == 0 then items[1] = { value = false, text = "(없음)" } end
         return items
     end, function(v) if v then G:LoadTemplate(v) page.preview = nil end end, { placeholder = "템플릿 불러오기" }))
+    f:Add(W.Button(f.parent, "공유", 50, 24, function() BRL.UIActions.ShareMenu("groups", page.templateDrop:GetValue() or nil, "파티 편성") end,
+        { tooltip = { "선택한 템플릿(없으면 현재 편성 계획)을 공유 문자열로 내보내거나 가져옵니다." } }))
     f:Add(W.Button(f.parent, "템플릿 저장", 86, 24, function()
         D.Input("편성 템플릿 저장", { { key = "name", label = "이름", type = "text", required = true, placeholder = "예: 오닉시아 기본 / 보스:HYJAL_SUMMIT_1" } },
             function(v) return G:SaveTemplate(v.name) end)

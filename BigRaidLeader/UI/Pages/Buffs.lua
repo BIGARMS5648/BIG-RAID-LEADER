@@ -150,6 +150,7 @@ end
 
 local function refresh(page)
     page.bossDrop:SetItems(UI.PlanItems())
+    UI.FollowActivePlan(page, function(key) page.bossKey = (key ~= "default") and key or nil page.bossDrop:SetValue(key, true) end)
     if page.tab == "buffs" then
         local pb = page.panels.buffs
         local required = {}

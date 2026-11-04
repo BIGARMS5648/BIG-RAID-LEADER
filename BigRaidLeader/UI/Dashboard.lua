@@ -44,7 +44,8 @@ local function build(page)
     sec:SetPoint("TOPLEFT", 4, -y)
     local flow = W.Flow(page, 4, y + 22, 6)
     flow:Add(W.Button(page, "준비 확인", 96, 26, function() BRL.Command:ReadyCheck() end, { perm = "raid.command" }))
-    flow:Add(W.Button(page, "풀링 " .. BRL.acct.command.pullSeconds .. "초", 96, 26, function() BRL.Command:Pull(BRL.acct.command.pullSeconds) end, { perm = "raid.command" }))
+    flow:Add(W.Button(page, "풀링 " .. BRL.acct.command.pullSeconds .. "초", 96, 26, function() BRL.UIActions.PullWithCheck() end, { perm = "raid.command",
+        tooltip = { "풀링 판정이 '보류'면 사유를 보여주고 확인 후 시작합니다." } }))
     flow:Add(W.Button(page, "풀링 취소", 86, 26, function() BRL.Command:CancelPull() end, { perm = "raid.command" }))
     flow:Add(W.Button(page, "전투 준비", 86, 26, function() BRL.CombatPrep:Run() end, { kind = "primary", tooltip = { "버프를 다시 읽어 음식/영약/비약/필수 버프가 없는 공대원을 알려줍니다." } }))
     flow:Add(W.Button(page, "다음 경매 시작", 110, 26, function()
@@ -54,6 +55,8 @@ local function build(page)
     flow:Add(W.Button(page, "정산 열기", 86, 26, function() UI:Open("settlement") end))
     flow:Add(W.Button(page, "징표 바", 76, 26, function() BRL.MarkerBar:Toggle() end))
     flow:Add(W.Button(page, "새 세션", 76, 26, function() UI:PromptNewSession() end, { perm = "finance.edit" }))
+    flow:Add(W.Button(page, "풀링 판정", 80, 26, function() BRL.UIActions.ShowPullCheck() end))
+    flow:Add(W.Button(page, "HUD", 50, 26, function() BRL.HUD:Toggle() end, { tooltip = { "메인 창 없이 경매/거래/풀링 판정/도핑을 보여주는 작은 창 (/brl hud)" } }))
 
     y = y + 60
     local warn = W.Section(page, "주의 사항")

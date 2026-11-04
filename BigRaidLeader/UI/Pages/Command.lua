@@ -36,7 +36,7 @@ local function build(page)
     s1:SetPoint("TOPLEFT", 4, 0)
     local grid = {
         { "준비 확인", function() Cmd:ReadyCheck() end },
-        { "풀링 카운트다운", function() Cmd:Pull(tonumber(pc.pullSec:GetText()) or BRL.acct.command.pullSeconds) end },
+        { "풀링 카운트다운", function() A.PullWithCheck(tonumber(pc.pullSec:GetText()) or BRL.acct.command.pullSeconds) end },
         { "풀링 취소", function() Cmd:CancelPull() end },
         { "공격 중지", function() Cmd:Stop() end },
         { "후퇴", function() Cmd:Retreat() end },
@@ -63,6 +63,7 @@ local function build(page)
     f1:AddLabel("휴식(분)", 54)
     pc.breakMin = f1:Add(W.EditBox(pc, 40, 22, { numeric = true }))
     pc.breakMin:SetText(tostring(BRL.acct.command.breakMinutes))
+    f1:Add(W.Button(pc, "풀링 판정", 76, 22, function() A.ShowPullCheck() end, { tooltip = { "준비 확인 · 사망/부재 · 도핑 · 역할을 종합해 풀링 가능 여부를 판정합니다." } }))
     pc.status = f1:Add(W.Label(pc, "", 12, "yellow"), 300)
 
     local s2 = W.Section(pc, "커스텀 공지")
@@ -149,6 +150,7 @@ local function build(page)
         Cmd:CopyMarkerPlan("default", page.planKey)
     end, { perm = "raid.plan", tooltip = { "기본 징표 규칙을 선택한 보스 템플릿으로 복사" } }))
     fm:Add(W.Button(fm.parent, "규칙 초기화", 90, 24, function() D.Confirm("징표 규칙을 초기화할까요?", function() Cmd:ClearMarkerPlan(page.planKey) end) end, { perm = "raid.plan" }))
+    fm:Add(W.Button(fm.parent, "공유", 50, 24, function() A.ShareMenu("markers", page.planKey) end))
 
     -- 전술 메모
     local pn = panel("notes")
@@ -182,6 +184,7 @@ local function build(page)
     end, { kind = "primary" }))
     fn:Add(W.Button(fn.parent, "채팅 출력", 80, 24, function() A.SendLines(Cmd:NoteLines(page.planKey, page.noteCat), "전술 메모 출력") end))
     fn:Add(W.Button(fn.parent, "복사(공유 텍스트)", 120, 24, function() D.CopyText("전술 메모", pn.area:GetText()) end))
+    fn:Add(W.Button(fn.parent, "공유 문자열", 84, 24, function() A.ShareMenu("notes", page.planKey) end))
     local tip = W.Label(fn.parent, "★ 또는 ! 로 시작하는 줄은 강조 표시됩니다.", 11, "muted")
     fn:Add(tip, 300)
 
@@ -190,6 +193,7 @@ end
 
 local function refresh(page)
     page.planDrop:SetItems(UI.PlanItems())
+    UI.FollowActivePlan(page, function(key) page.planKey = key page.planDrop:SetValue(key, true) end)
     if page.tab == "cmd" then
         local pc = page.panels.cmd
         pc.saved:SetData(Cmd:SavedCommands(), true)

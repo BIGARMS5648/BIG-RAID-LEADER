@@ -50,7 +50,8 @@ local function build(page)
             return key ~= nil
         end)
     end, { perm = "raid.plan" }))
-    fb:Add(W.Button(bl, "현재 보스", 70, 22, function() if page.bossKey then P:SetCurrentBoss(page.bossKey) end end, { perm = "raid.command" }))
+    fb:Add(W.Button(bl, "준비 적용", 70, 22, function() A.ApplyBossPrep(page.bossKey) end, { kind = "primary", perm = "raid.plan",
+        tooltip = { "이 보스를 현재 보스로 지정하고 보스 편성 템플릿('보스:이름')을 불러옵니다.", "전술표/징표/메모/필수 버프 화면이 이 보스를 따라갑니다." } }))
     fb:Add(W.Button(bl, "삭제", 50, 22, function()
         if page.bossKey then D.Confirm("사용자 보스를 삭제할까요?", function() BP:RemoveBoss(page.bossKey) page.bossKey = nil end, { danger = true }) end
     end, { perm = "raid.plan" }))
@@ -133,6 +134,8 @@ local function build(page)
         if page.bossKey then D.Confirm("편집 내용을 지우고 기본 데이터로 되돌릴까요?", function() BP:ResetToDefault(page.bossKey) end, { danger = true }) end
     end, { perm = "raid.plan" }))
     f1:Add(W.Button(f1.parent, "공략 안내 출력", 100, 24, function() if page.bossKey then A.SendLines(BP:BriefingLines(page.bossKey), "공략 안내") end end))
+    f1:Add(W.Button(f1.parent, "공유", 50, 24, function() if page.bossKey then A.ShareMenu("boss", page.bossKey) end end,
+        { tooltip = { "공략·배치도·타임라인을 공유 문자열로 내보내거나 가져옵니다." } }))
 
     -- 배치도
     local pl = panel("layout")

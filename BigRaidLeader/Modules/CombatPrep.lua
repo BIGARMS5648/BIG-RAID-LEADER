@@ -189,6 +189,157 @@ function CP:WhisperMissing(res)
     return n
 end
 
+---------------------------------------------------------------------------
+-- 풀링 판정: 준비 확인 · 사망/부재 · 도핑 · 역할을 종합해 "풀링 가능/주의/보류"
+---------------------------------------------------------------------------
+CP.VERDICT = {
+    go = { label = "풀링 가능", color = "green" },
+    caution = { label = "주의 후 풀링", color = "yellow" },
+    stop = { label = "풀링 보류", color = "red" },
+}
+local RANK = { go = 1, caution = 2, stop = 3 }
+
+function CP:PullCheck()
+    local level, reasons = "go", {}
+    local function bump(l, text)
+        if RANK[l] > RANK[level] then level = l end
+        -- 보류 사유를 앞쪽에 둔다
+        if l == "stop" then table.insert(reasons, 1, text) else reasons[#reasons + 1] = text end
+    end
+    if API.InCombat() then
+        local v = self.VERDICT.stop
+        return { verdict = "stop", label = "전투 중", color = v.color, reasons = { "전투 중입니다" } }
+    end
+    local inGroup = API.IsInGroup()
+    if not inGroup then bump("caution", "그룹이 아닙니다") end
+    local rs = BRL.Readiness:Summary()
+    if inGroup then
+        if rs.dead > 0 then bump("stop", "사망 " .. rs.dead .. "명") end
+        if rs.offline > 0 then bump("caution", "오프라인 " .. rs.offline .. "명") end
+        if rs.absent > 0 then bump("caution", "다른 지역 " .. rs.absent .. "명") end
+        if not rs.checked then
+            bump("caution", "준비 확인 미실시")
+        elseif rs.active then
+            bump("caution", "준비 확인 진행 중")
+        else
+            if rs.notready > 0 then bump("stop", "준비 안 됨 " .. rs.notready .. "명") end
+            if rs.noresponse > 0 then bump("caution", "준비 확인 무응답 " .. rs.noresponse .. "명") end
+            local age = U.Now() - (BRL.Readiness.check.finishedAt or BRL.Readiness.check.startedAt or 0)
+            if age > 300 then bump("caution", "준비 확인 " .. math.floor(age / 60) .. "분 지남") end
+        end
+        local _, counts = BRL.Roster:Warnings()
+        -- 역할은 직업 기본값으로 추정하므로 보류가 아닌 주의로만 알린다
+        if (counts.TANK or 0) == 0 then bump("caution", "탱커 미지정 (역할 화면)") end
+        if (counts.HEALER or 0) == 0 then bump("caution", "힐러 없음") end
+    end
+    local last = self.last
+    if not last then
+        bump("caution", "도핑 점검 안 함 ([전투 준비])")
+    else
+        local age = U.Now() - (last.at or 0)
+        if age > 600 then bump("caution", "도핑 점검 " .. math.floor(age / 60) .. "분 지남") end
+        local miss = {}
+        for _, r in ipairs(last.noFood) do miss[r.key] = true end
+        for _, r in ipairs(last.noMain) do miss[r.key] = true end
+        local n = U.Count(miss)
+        if n > 0 then bump("caution", "도핑 누락 " .. n .. "명") end
+        local bm = 0
+        for _ in pairs(last.buffMissing) do bm = bm + 1 end
+        if bm > 0 then bump("caution", "필수 버프 누락 " .. bm .. "종") end
+    end
+    if BRL.Buffs.needsRecheck then bump("caution", "전멸 후 재점검 필요") end
+    if rs.lowDurability > 0 then bump("caution", "내 장비 내구도 낮음") end
+    local v = self.VERDICT[level]
+    return { verdict = level, label = v.label, color = v.color, reasons = reasons }
+end
+
+function CP:PullCheckLines(pc)
+    pc = pc or self:PullCheck()
+    local lines = { "[BIG RAID LEADER 풀링 판정] " .. pc.label }
+    if #pc.reasons > 0 then lines[#lines + 1] = table.concat(pc.reasons, " · ") end
+    return lines
+end
+
+---------------------------------------------------------------------------
+-- 전멸 복구: 우두머리 전투 실패 → 전투 종료 후 사망자 · 영혼석 · 재버프 · 도핑 점검
+---------------------------------------------------------------------------
+function CP:OnEnable()
+    BRL.Events:Register("ENCOUNTER_END", self, function(_, _, encounterID, encounterName, _, _, success)
+        if success == 1 or success == true then self.pendingWipe = nil return end
+        local key = BRL.BossPlans and BRL.BossPlans:ResolveEncounter(encounterID, encounterName)
+        self.pendingWipe = { bossKey = key, name = API.Safe(encounterName, nil), clock = U.Clock() }
+        if not API.InCombat() then self:ScheduleWipeRecovery() end
+    end)
+    BRL.Events:Register("PLAYER_REGEN_ENABLED", self, function()
+        if self.pendingWipe then self:ScheduleWipeRecovery() end
+    end)
+end
+
+function CP:ScheduleWipeRecovery()
+    if BRL.acct.consumables.wipeRecovery == false then self.pendingWipe = nil return end
+    local wipe = self.pendingWipe
+    if not wipe or wipe.scheduled then return end
+    wipe.scheduled = true
+    -- 전투 종료 직후 사망/오라 정보가 갱신될 시간을 둔다
+    API.After(1.5, function()
+        if self.pendingWipe ~= wipe then return end
+        self.pendingWipe = nil
+        if API.InCombat() then return end
+        self:WipeRecovery(wipe.bossKey, { name = wipe.name })
+    end)
+end
+
+function CP:WipeRecovery(bossKey, opts)
+    opts = opts or {}
+    if API.InCombat() then return nil, "combat" end
+    BRL.Roster:Refresh()
+    BRL.Buffs:Scan()
+    local res = self:Evaluate(bossKey or (BRL.RaidProgress and BRL.RaidProgress:GetCurrentBoss()))
+    local wipe = { dead = {}, soulstones = {}, deadWithStone = {}, rebuff = {}, name = opts.name }
+    for _, m in ipairs(BRL.Roster:Sorted("group")) do
+        local r = BRL.Buffs.results[m.key]
+        local stone = r and r.soulstone
+        if m.dead then
+            wipe.dead[#wipe.dead + 1] = m
+            if stone then wipe.deadWithStone[#wipe.deadWithStone + 1] = m end
+        end
+        if stone then wipe.soulstones[#wipe.soulstones + 1] = m end
+    end
+    for _, b in ipairs(BRL.Data.ClassBuffs) do
+        local mb = res.buffMissing[b.key]
+        if mb then wipe.rebuff[#wipe.rebuff + 1] = { buff = b, count = #mb.rows, provider = BRL.Buffs:GetProvider(b.key) } end
+    end
+    res.wipe = wipe
+    self.last = res
+    BRL:Print("전멸 복구 점검: 사망 %d명 · 영혼석 %d명 · 재버프 필요 %d종 · 도핑 누락 %d명", #wipe.dead, #wipe.soulstones, #wipe.rebuff, #res.noFood + #res.noMain)
+    BRL.Events:Fire(BRL.Events.MSG.READY_CHANGED)
+    BRL.Events:Fire(BRL.Events.MSG.DATA_CHANGED, "prep")
+    if not opts.silent and BRL.PrepReport then BRL.PrepReport:Show(res) end
+    return res
+end
+
+function CP:WipeLines(res)
+    res = res or self.last
+    local w = res and res.wipe
+    if not w then return { "[BIG RAID LEADER 전멸 복구] 기록 없음" } end
+    local function list(ms)
+        local out = {}
+        for _, m in ipairs(ms) do out[#out + 1] = m.short end
+        return table.concat(out, ", ")
+    end
+    local lines = { "[BIG RAID LEADER 전멸 복구]" .. (w.name and (" " .. w.name) or "") }
+    lines[#lines + 1] = "사망 " .. #w.dead .. "명" .. (#w.dead > 0 and (": " .. list(w.dead)) or "")
+    if #w.deadWithStone > 0 then lines[#lines + 1] = "영혼석 부활 가능: " .. list(w.deadWithStone) end
+    local rb = {}
+    for _, e in ipairs(w.rebuff) do rb[#rb + 1] = e.buff.name .. (e.provider and ("(" .. API.ShortName(e.provider) .. ")") or "") end
+    if #rb > 0 then lines[#lines + 1] = "재버프 필요: " .. table.concat(rb, ", ") end
+    if #res.noFood + #res.noMain > 0 then
+        lines[#lines + 1] = string.format("도핑 누락: 음식 %d명 · %s %d명", #res.noFood, self:MainLabel(), #res.noMain)
+    end
+    lines[#lines + 1] = "부활 → 재버프 → 도핑 → 준비 확인 순서로 정비합니다."
+    return lines
+end
+
 -- 특정 공대원의 마지막 도핑 상태 (준비 상태 화면용)
 function CP:RowFor(key)
     if not self.last then return nil end

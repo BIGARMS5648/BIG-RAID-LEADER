@@ -91,3 +91,6 @@ end
 
 -- 기본 필수 버프
 BRL.Data.DefaultRequiredBuffs = { FORTITUDE = true, INTELLECT = true, MOTW = true, KINGS = true }
+
+-- 영혼석(흑마법사) 오라 이름 키워드 - 전멸 복구 화면의 자가 부활 가능 인원 표시
+BRL.Data.SoulstoneKeywords = { "영혼석", "Soulstone" }

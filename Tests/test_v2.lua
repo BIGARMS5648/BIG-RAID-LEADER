@@ -328,3 +328,247 @@ T.test("구매자 기록: 세션 합산 / 보관된 세션 포함 / 검색 / 미
     T.ok(found, "보관 표시")
     T.ok(s2)
 end)
+
+-- 10인: 공대장(전사) + 마법사/도적/사냥꾼/흑마/드루이드/성기사/주술사/전사/사제
+local function fullBuffs(n, extra)
+    local now = M.clock
+    for i = 1, n do
+        M.auras["raid" .. i] = { { name = "포만감", spellId = 19709, expirationTime = now + 1800 }, { name = "거인의 영약", spellId = 17626, expirationTime = now + 7000 } }
+    end
+    for unit, list in pairs(extra or {}) do
+        for _, a in ipairs(list) do table.insert(M.auras[unit], a) end
+    end
+end
+
+local function readyAll(n)
+    M.Fire("READY_CHECK", "공대장", 30)
+    for i = 2, n do M.Fire("READY_CHECK_CONFIRM", "raid" .. i, true) end
+    M.Fire("READY_CHECK_FINISHED")
+end
+
+T.test("풀링 판정: 미실시 → 주의 / 준비·도핑 완료 → 가능 / 사망·준비 안 됨 → 보류 / 전투 중", function()
+    local BRL = T.fresh({ group = T.raid(10) })
+    BRL.Roster:Refresh()
+    BRL.acct.consumables.checkClassBuffs = false
+    local pc = BRL.CombatPrep:PullCheck()
+    T.eq(pc.verdict, "caution")
+    T.contains(table.concat(pc.reasons, ","), "준비 확인 미실시")
+    T.contains(table.concat(pc.reasons, ","), "도핑 점검 안 함")
+    T.contains(table.concat(pc.reasons, ","), "탱커 미지정")
+    BRL.Roles:SetMemberRole("공대장-아즈샤라", "TANK")
+    fullBuffs(10)
+    BRL.CombatPrep:Run({ silent = true })
+    readyAll(10)
+    pc = BRL.CombatPrep:PullCheck()
+    T.eq(pc.verdict, "go", table.concat(pc.reasons, ","))
+    T.eq(pc.label, "풀링 가능")
+    -- 사망자
+    M.group.members[3].dead = true
+    BRL.Roster:Refresh()
+    pc = BRL.CombatPrep:PullCheck()
+    T.eq(pc.verdict, "stop")
+    T.eq(pc.reasons[1], "사망 1명", "보류 사유가 먼저")
+    M.group.members[3].dead = false
+    BRL.Roster:Refresh()
+    -- 준비 안 됨
+    M.Fire("READY_CHECK", "공대장", 30)
+    M.Fire("READY_CHECK_CONFIRM", "raid2", false)
+    M.Fire("READY_CHECK_FINISHED")
+    T.eq(BRL.CombatPrep:PullCheck().verdict, "stop")
+    -- 도핑 오래됨
+    readyAll(10)
+    M.serverTime = M.serverTime + 900
+    pc = BRL.CombatPrep:PullCheck()
+    T.eq(pc.verdict, "caution")
+    T.contains(table.concat(pc.reasons, ","), "도핑 점검 15분 지남")
+    M.combat = true
+    T.eq(BRL.CombatPrep:PullCheck().label, "전투 중")
+    M.combat = false
+    -- 공지 줄 / 판정 보류 시 풀링 확인
+    T.contains(BRL.CombatPrep:PullCheckLines()[1], "풀링 판정")
+    M.group.members[3].dead = true
+    BRL.Roster:Refresh()
+    T.no(BRL.UIActions.PullWithCheck(10), "보류면 확인 창 먼저")
+end)
+
+T.test("전멸 복구: 전투 실패 → 전투 종료 후 사망자/영혼석/재버프/도핑 점검", function()
+    local BRL = T.fresh({ group = T.raid(10) })
+    BRL.Roster:Refresh()
+    BRL.acct.consumables.checkClassBuffs = true
+    fullBuffs(10, { raid3 = { { name = "영혼석 부활", spellId = 20707, expirationTime = M.clock + 1500 } },
+        raid5 = { { name = "영혼석 부활", spellId = 20707, expirationTime = M.clock + 1500 } } })
+    M.auras.raid4 = {}
+    M.group.members[3].dead = true
+    M.group.members[6].dead = true
+    M.combat = true
+    M.Fire("ENCOUNTER_END", 1084, "오닉시아", 9, 10, 0)
+    T.ok(BRL.CombatPrep.pendingWipe, "전멸 기록")
+    M.Advance(3)
+    T.no(BRL.CombatPrep.last, "전투 중에는 점검 안 함")
+    M.combat = false
+    M.Fire("PLAYER_REGEN_ENABLED")
+    M.Advance(2)
+    local res = BRL.CombatPrep.last
+    T.ok(res and res.wipe, "전투 종료 후 자동 점검")
+    T.eq(#res.wipe.dead, 2)
+    T.eq(#res.wipe.soulstones, 2)
+    T.eq(#res.wipe.deadWithStone, 1)
+    T.eq(res.wipe.deadWithStone[1].short, "대원3")
+    T.ok(#res.wipe.rebuff >= 1, "재버프 필요")
+    T.ok(#res.noFood >= 1, "도핑 누락 (대원4)")
+    local text = table.concat(BRL.CombatPrep:WipeLines(), "\n")
+    T.contains(text, "사망 2명")
+    T.contains(text, "영혼석 부활 가능: 대원3")
+    T.contains(text, "재버프 필요")
+    T.ok(BRL.PrepReport.frame:IsShown())
+    T.contains(BRL.PrepReport.frame.title:GetText(), "전멸 복구")
+    -- 처치 성공은 복구 안 함 / 설정 끄면 안 함
+    BRL.CombatPrep.last = nil
+    M.Fire("ENCOUNTER_END", 1084, "오닉시아", 9, 10, 1)
+    M.Advance(3)
+    T.no(BRL.CombatPrep.last)
+    BRL.acct.consumables.wipeRecovery = false
+    M.Fire("ENCOUNTER_END", 1084, "오닉시아", 9, 10, 0)
+    M.Advance(3)
+    T.no(BRL.CombatPrep.last, "설정 끔")
+end)
+
+T.test("보스 준비 적용: 현재 보스 + 보스 편성 템플릿 + 화면이 활성 전술표를 따라감", function()
+    local BRL = T.fresh({ group = T.raid(10) })
+    BRL.Roster:Refresh()
+    BRL.Session:Create({ raidKey = "ONYXIAS_LAIR" })
+    local boss = BRL.BossPlans:List("ONYXIAS_LAIR")[1]
+    T.ok(boss, "보스 데이터")
+    local res = assert(BRL.BossPlans:ApplyPrep(boss.key))
+    T.no(res.groupTemplate, "템플릿 없으면 불러오지 않음")
+    T.contains(table.concat(BRL.BossPlans:PrepLines(res), "\n"), "보스 편성 템플릿 없음")
+    BRL.Groups:FromCurrent()
+    local ok, name = BRL.BossPlans:SaveGroupTemplate(boss.key)
+    T.ok(ok)
+    T.eq(name, "보스:" .. boss.name)
+    BRL.Groups:Reset()
+    BRL.Roles:Assign(boss.key, "MAIN_TANK", "대원9")
+    res = assert(BRL.BossPlans:ApplyPrep(boss.key))
+    T.eq(res.groupTemplate, "보스:" .. boss.name, "보스 편성 불러옴")
+    T.ok(#BRL.Groups:GetPlan().groups[1] > 0, "편성 계획 채워짐")
+    T.eq(res.duties, 1)
+    T.eq(BRL.RaidProgress:GetCurrentBoss(), boss.key)
+    T.eq(BRL.BossPlans:ActivePlanKey(), boss.key)
+    BRL.UI:Open("roles")
+    BRL.UI:Refresh()
+    T.eq(BRL.UI.pages.roles.frame.planKey, boss.key, "전술표 화면이 보스를 따라감")
+    BRL.UI:Open("command")
+    BRL.UI:Refresh()
+    T.eq(BRL.UI.pages.command.frame.planKey, boss.key, "지휘 화면도 따라감")
+    BRL.UI:Open("buffs")
+    BRL.UI:Refresh()
+    T.eq(BRL.UI.pages.buffs.frame.bossKey, boss.key, "버프 화면도 따라감")
+    BRL.UIActions.ApplyBossPrep(boss.key)
+    T.ok(BRL.Dialogs, "확인 창")
+    -- 공대장이 아니면 거부
+    M.player.rank = 0
+    M.group.members[1].rank = 0
+    M.group.members[2].rank = 2
+    T.no(BRL.BossPlans:ApplyPrep(boss.key))
+end)
+
+T.test("공유 문자열: 공략/편성/전술표/징표/메모/목표 구성 왕복, 손상·종류 오류 감지", function()
+    local BRL = T.fresh({ group = T.raid(10) })
+    BRL.Roster:Refresh()
+    local boss = BRL.BossPlans:List("ONYXIAS_LAIR")[1]
+    BRL.BossPlans:Set(boss.key, "summary", "공유 테스트 요약")
+    BRL.BossPlans:AddTimelineEvent(boss.key, 30, "숨결 주의")
+    local str = assert(BRL.Share:Export("boss", boss.key))
+    T.contains(str, "BRL:share_boss:")
+    BRL.BossPlans:ResetToDefault(boss.key)
+    T.no(BRL.BossPlans:Get(boss.key).summary == "공유 테스트 요약")
+    local payload, desc = BRL.Share:Preview(str)
+    T.ok(payload, desc)
+    T.contains(desc, "공략")
+    T.ok(BRL.Share:Apply(payload))
+    T.eq(BRL.BossPlans:Get(boss.key).summary, "공유 테스트 요약", "공략 복원")
+    -- 다른 사람의 사용자 보스 → 새 사용자 보스로 추가
+    local ck = BRL.BossPlans:AddBoss("CUSTOM", "친구 보스")
+    local cstr = BRL.Share:Export("boss", ck)
+    BRL.BossPlans:RemoveBoss(ck)
+    local ok, newKey = BRL.Share:Apply((BRL.Share:Preview(cstr)))
+    T.ok(ok)
+    T.ok(newKey ~= ck and newKey:find("^CUSTOM_"), "새 키로 추가")
+    T.eq(BRL.BossPlans:Get(newKey).name, "친구 보스")
+    -- 전술표: 기본 → 보스 전술표로 가져오기
+    BRL.Roles:Assign("default", "MAIN_TANK", "대원9")
+    BRL.Roles:AddToOrder("default", "INTERRUPT", "대원3")
+    local rstr = BRL.Share:Export("roles", "default")
+    T.ok(BRL.Share:Apply(BRL.Share:Preview(rstr), boss.key))
+    T.eq(BRL.Roles:GetAssignees(boss.key, "MAIN_TANK")[1].key, "대원9-아즈샤라")
+    T.eq(BRL.Roles:GetOrder(boss.key, "INTERRUPT")[1], "대원3-아즈샤라")
+    -- 편성
+    BRL.Groups:FromCurrent()
+    T.ok(BRL.Share:Apply((BRL.Share:Preview(BRL.Share:Export("groups")))))
+    local found
+    for _, n in ipairs(BRL.Groups:Templates()) do if n:find("^가져온 편성") then found = n end end
+    T.ok(found, "가져온 편성 템플릿")
+    -- 징표 / 메모 / 목표 구성
+    BRL.Command:SetMarkerRule("default", 8, "target", "해골 먼저")
+    T.ok(BRL.Share:Apply(BRL.Share:Preview(BRL.Share:Export("markers", "default")), boss.key))
+    T.eq(BRL.Command:GetMarkerPlan(boss.key)[8].target, "해골 먼저")
+    BRL.Command:SetNote("default", "shared", "★ 숨결 피하기")
+    T.ok(BRL.Share:Apply(BRL.Share:Preview(BRL.Share:Export("notes", "default")), boss.key))
+    T.eq(BRL.Command:GetNote(boss.key, "shared"), "★ 숨결 피하기")
+    local t = BRL.Composition:Target(20)
+    local classes = {}
+    for k, v in pairs(t.classes) do classes[k] = v end
+    classes.MAGE = 5
+    BRL.Composition:SetTargetClasses(20, classes)
+    local cstr2 = BRL.Share:Export("comp", 20)
+    BRL.Composition:ResetTarget(20)
+    T.ok(BRL.Share:Apply((BRL.Share:Preview(cstr2))))
+    T.eq(BRL.Composition:Target(20).classes.MAGE, 5, "목표 구성 복원")
+    -- 손상 / 종류 오류
+    local bad = str:sub(1, -6) .. "AAAA="
+    T.no(BRL.Share:Preview(bad), "손상 감지")
+    local _, err = BRL.Share:Preview(BRL.Serializer.Export("settings", BRL.acct))
+    T.contains(err, "공유 문자열이 아닙니다")
+    -- 권한
+    M.player.rank = 0
+    M.group.members[1].rank = 0
+    M.group.members[2].rank = 2
+    T.no(BRL.Share:Apply(BRL.Share:Preview(rstr), "default"), "공대장 아님 → 거부")
+end)
+
+T.test("HUD: 표시/숨김, 경매·카운트·거래·풀링 판정 줄, 슬래시 명령", function()
+    local BRL = T.fresh({ group = T.raid(5) })
+    BRL.Roster:Refresh()
+    BRL.Session:Create({})
+    sellOne(BRL, "대원2", 900 * G, 0, 601)
+    BRL.HUD:Show()
+    T.ok(BRL.HUD:IsShown())
+    T.ok(BRL.acct.hud.show, "설정 저장")
+    local text = table.concat(BRL.HUD:Lines(), "\n")
+    T.contains(text, "경매 없음")
+    T.contains(text, "풀링:")
+    T.contains(text, "미수")
+    local auc = assert(BRL.Auctions:Add(M.ItemLink(602, "HUD템"), { startPrice = 1 }))
+    BRL.Auctions:Start(auc.id)
+    BRL.Bids:Place(auc.id, "대원3", 100 * G, "manual")
+    text = table.concat(BRL.HUD:Lines(), "\n")
+    T.contains(text, "HUD템")
+    T.contains(text, "대원3")
+    BRL.Auctions:StartCount()
+    T.contains(table.concat(BRL.HUD:Lines(), "\n"), "카운트")
+    M.trade = { partner = "대원2", partnerClass = "MAGE", playerMoney = 0, targetMoney = 0, playerItems = {}, targetItems = {} }
+    M.Fire("TRADE_SHOW")
+    T.contains(table.concat(BRL.HUD:Lines(), "\n"), "거래: 대원2")
+    M.Advance(1)
+    T.contains(BRL.HUD.frame.body:GetText(), "거래: 대원2", "주기 갱신")
+    BRL.HUD:Hide()
+    T.no(BRL.HUD:IsShown())
+    T.no(BRL.acct.hud.show)
+    -- 슬래시 명령 (오류 없음)
+    local before = #BRL.errors
+    for _, c in ipairs({ "hud", "hud", "판정", "독촉", "복구", "진단", "추적", "보관", "보스준비" }) do SlashCmdList.BIGRAIDLEADER(c) end
+    T.eq(#BRL.errors, before, "슬래시 오류 없음")
+    BigRaidLeader_Binding("HUD")
+    BigRaidLeader_Binding("PULLCHECK")
+    T.eq(#BRL.errors, before)
+end)

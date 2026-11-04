@@ -59,7 +59,7 @@ function PR:Create()
             return r.member.short, lines
         end,
     })
-    f.list:SetPoint("TOPLEFT", 14, -96)
+    f.list:SetPoint("TOPLEFT", 14, -112)
     f.list:SetPoint("BOTTOMRIGHT", -14, 48)
     local bar = CreateFrame("Frame", nil, f)
     bar:SetPoint("BOTTOMLEFT", 14, 12)
@@ -74,7 +74,14 @@ function PR:Create()
         BRL:Print("도핑이 필요한 %d명에게 귓속말을 보냈습니다.", n)
     end, { perm = "raid.command" }))
     fl:Add(W.Button(bar, "준비 확인", 80, 24, function() BRL.Readiness:Start() end, { perm = "raid.command" }))
-    fl:Add(W.Button(bar, "복사", 50, 24, function() BRL.Dialogs.CopyText("전투 준비 결과", table.concat(BRL.CombatPrep:Lines(), "\n")) end))
+    fl:Add(W.Button(bar, "복사", 50, 24, function()
+        local lines = BRL.CombatPrep:Lines()
+        if PR.res and PR.res.wipe then lines = BRL.CombatPrep:WipeLines(PR.res) end
+        BRL.Dialogs.CopyText("전투 준비 결과", table.concat(lines, "\n"))
+    end))
+    f.wipeBtn = fl:Add(W.Button(bar, "복구 순서 공지", 100, 24, function()
+        if PR.res and PR.res.wipe then BRL.ChatOut:SendLines(BRL.CombatPrep:WipeLines(PR.res)) end
+    end, { perm = "raid.command" }))
     self.frame = f
     return f
 end
@@ -88,12 +95,29 @@ function PR:Render()
         if not f.onlyMissing:GetChecked() or not r.ok or r.unavailable or #r.expiring > 0 then rows[#rows + 1] = r end
     end
     f.list:SetData(rows, true)
-    local lines = {
-        string.format("도핑 완료 %s / 점검 %d명  ·  음식 없음 %s  ·  %s 없음 %s  ·  곧 만료 %d  ·  확인 불가 %d",
+    local lines = {}
+    local w = res.wipe
+    f.title:SetText(w and "전멸 복구 - 정비 점검" or "전투 준비 - 도핑 점검")
+    if f.wipeBtn then if w then f.wipeBtn:Show() else f.wipeBtn:Hide() end end
+    if w then
+        local function names(ms, color)
+            local out = {}
+            for _, m in ipairs(ms) do out[#out + 1] = BRL.Data.ColorName(m.short, m.class) end
+            return #out > 0 and table.concat(out, ", ") or T.Color(color or "muted", "없음")
+        end
+        lines[#lines + 1] = T.Color("red", "사망 " .. #w.dead .. "명: ") .. names(w.dead, "green")
+        lines[#lines + 1] = T.Color("blue", "영혼석: ") .. names(w.soulstones) .. (#w.deadWithStone > 0 and T.Color("green", " (사망자 중 자가 부활 " .. #w.deadWithStone .. "명)") or "")
+        local rb = {}
+        for _, e in ipairs(w.rebuff) do rb[#rb + 1] = e.buff.name .. " " .. e.count .. "명" .. (e.provider and (" → " .. BRL.API.ShortName(e.provider)) or "") end
+        lines[#lines + 1] = T.Color("yellow", "재버프: ") .. (#rb > 0 and table.concat(rb, ", ") or T.Color("green", "필요 없음"))
+    else
+        local pc = BRL.CombatPrep:PullCheck()
+        lines[#lines + 1] = "풀링 판정: " .. T.Color(pc.color, pc.label) .. (pc.reasons[1] and T.Color("muted", "  " .. table.concat(pc.reasons, " · ")) or "")
+    end
+    lines[#lines + 1] = string.format("도핑 완료 %s / 점검 %d명  ·  음식 없음 %s  ·  %s 없음 %s  ·  곧 만료 %d  ·  확인 불가 %d",
             T.Color("green", tostring(res.okCount)), res.checked,
             T.Color(#res.noFood > 0 and "red" or "green", tostring(#res.noFood)), BRL.CombatPrep:MainLabel(),
-            T.Color(#res.noMain > 0 and "red" or "green", tostring(#res.noMain)), #res.expiring, #res.unavailable),
-    }
+            T.Color(#res.noMain > 0 and "red" or "green", tostring(#res.noMain)), #res.expiring, #res.unavailable)
     local bm = {}
     for _, b in ipairs(BRL.Data.ClassBuffs) do
         local m = res.buffMissing[b.key]

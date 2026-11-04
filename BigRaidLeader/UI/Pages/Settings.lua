@@ -58,6 +58,9 @@ local function build(page)
     local s2 = W.Section(pg, "인터페이스")
     s2:SetPoint("TOPLEFT", 4, -180)
     check(pg, 8, 204, "미니맵 버튼 숨기기", "minimap.hide", nil, function() BRL.Minimap:UpdateVisibility() end)
+    check(pg, 230, 204, "공대장 HUD 표시", "hud.show", { "메인 창 없이 경매/카운트, 거래 상대, 풀링 판정, 도핑, 미지급을 보여주는 작은 창", "/brl hud" },
+        function(v) if v then BRL.HUD:Show() else BRL.HUD:Hide() end end)
+    check(pg, 360, 204, "HUD 위치 잠금", "hud.locked")
     local sl = W.Label(pg, "창 크기 배율", 12, "muted")
     sl:SetPoint("TOPLEFT", 8, -236)
     local scaleDrop = W.Dropdown(pg, 100, {
@@ -107,6 +110,7 @@ local function build(page)
     pg.prepMin:SetPoint("TOPLEFT", 560, -176)
     local pn = W.Paragraph(pg, "만료 임박 기준은 버프 설정의 만료 경고(분)를 따릅니다. 물약·주문서처럼 사용 시 사라지는 소모품은 점검할 수 없습니다.", 420, 11)
     pn:SetPoint("TOPLEFT", 454, -208)
+    check(pg, 454, 246, "우두머리 전투 실패 시 전멸 복구 창 (사망자·영혼석·재버프·도핑)", "consumables.wipeRecovery")
     T.SetTextColor(pn, "muted")
 
     -- 경매 / 정산
@@ -305,6 +309,8 @@ local function build(page)
     local dn = W.Paragraph(pd, "WoW 애드온은 파일을 직접 쓸 수 없어 내보내기는 복사 창으로 제공됩니다. 데이터는 로그아웃/UI 재시작 시 WTF\\Account\\<계정>\\SavedVariables\\BigRaidLeader.lua 에 저장됩니다. 정산이 끝나도 원본 거래 로그는 삭제되지 않습니다.", 880, 11)
     dn:SetPoint("TOPLEFT", 4, -406)
     T.SetTextColor(dn, "muted")
+    W.Button(pd, "공유 문자열 가져오기", 140, 22, function() BRL.UIActions.ShareImport() end,
+        { tooltip = { "공략/편성/전술표/징표/메모/목표 구성 공유 문자열을 가져옵니다.", "종류는 자동으로 판별합니다." } }):SetPoint("TOPLEFT", 120, -446)
     W.Button(pd, "오류 기록 보기", 110, 22, function()
         local lines = {}
         for _, e in ipairs(BRL.db.errorLog or {}) do lines[#lines + 1] = U.FormatDateTime(e.at) .. " " .. e.context .. ": " .. e.message end

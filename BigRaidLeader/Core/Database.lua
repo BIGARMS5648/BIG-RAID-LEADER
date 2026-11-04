@@ -61,7 +61,8 @@ DB.ACCOUNT_DEFAULTS = {
         remainderMode = "keep",     -- keep(잔돈 보관) | carry(다음 정산 이월) | leader(공대장 지급)
     },
     chat = { reportChannel = "RAID" },
-    archive = { days = 30, auto = false },  -- 세션 보관: N일 지난 종료 세션, 접속 시 자동 보관(기본 끔)
+    archive = { days = 30, auto = false },
+    hud = { show = false, locked = false, point = nil },     -- 공대장 HUD  -- 세션 보관: N일 지난 종료 세션, 접속 시 자동 보관(기본 끔)
     buffs = { campReplacesClassBuff = true, expireWarnMinutes = 5, required = {} },
     readiness = { minDurability = 50 },
     command = { pullSeconds = 10, breakMinutes = 5 },
@@ -74,6 +75,7 @@ DB.ACCOUNT_DEFAULTS = {
         expiringAsMissing = false,      -- 곧 만료되는 도핑도 누락으로 알림
         autoAnnounce = false,           -- 전투 준비 시 공격대 채팅 자동 공지
         withReadyCheck = false,         -- 전투 준비 시 준비 확인 함께 실행
+        wipeRecovery = true,            -- 우두머리 전투 실패 후 전멸 복구 점검 창 자동 표시
     },
 }
 
