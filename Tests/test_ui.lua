@@ -75,7 +75,7 @@ T.test("모든 버튼 클릭 (공대장) - Lua 오류 없음", function()
     T.eq(#errs, 0, "오류 없음\n" .. table.concat(errs, "\n"))
 end)
 
-T.test("일반 공대원 권한으로 화면 열기 (읽기 전용)", function()
+T.test("공대장이 아닐 때 화면 열기 (편집 잠김)", function()
     local BRL = seed()
     M.player.rank = 0
     M.group.members[1].rank = 0
@@ -89,7 +89,7 @@ T.test("일반 공대원 권한으로 화면 열기 (읽기 전용)", function()
     local disabled = 0
     for _, b in ipairs(BRL.Widgets.permButtons) do if not b:IsEnabled() then disabled = disabled + 1 end end
     T.ok(disabled > 20, "권한 없는 버튼 비활성화 " .. disabled)
-    T.contains(BRL.UI.pages.settlement.frame.permBanner:GetText(), "읽기 전용")
+    T.contains(BRL.UI.pages.settlement.frame.permBanner:GetText(), "공대장 권한 없음")
     T.eq(#errorsSince(BRL, before), 0)
 end)
 

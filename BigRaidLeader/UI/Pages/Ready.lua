@@ -41,7 +41,7 @@ local function build(page)
     page.list = W.List(page, {
         columns = cols,
         onDoubleClick = function(r) page.manualCheck(r) end,
-        tooltip = function(r) return r.member.short, { "더블클릭: 수동 점검 항목 체크", "내구도는 애드온 설치 공대원의 보고 또는 본인 장비 기준" } end,
+        tooltip = function(r) return r.member.short, { "더블클릭: 수동 점검 항목 체크", "내구도는 게임 API로 본인 장비만 확인할 수 있습니다" } end,
     })
     page.list:SetPoint("TOPLEFT", 4, -52)
     page.list:SetPoint("BOTTOMRIGHT", -4, 70)
@@ -71,7 +71,6 @@ local function build(page)
         end)
     end, { perm = "raid.command" }))
     f:Add(W.Button(f.parent, "수동 점검 초기화", 120, 24, function() D.Confirm("이번 세션의 수동 점검 기록을 초기화할까요?", function() Ready:ResetManual() end) end, { perm = "raid.command" }))
-    f:Add(W.Button(f.parent, "내 상태 보고", 100, 24, function() BRL.Sync:SendReadyReport() end))
 end
 
 local function refresh(page)

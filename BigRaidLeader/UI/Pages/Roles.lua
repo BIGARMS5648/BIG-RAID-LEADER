@@ -130,10 +130,6 @@ local function build(page)
         for _, it in ipairs(UI.PlanItems()) do if it.value == page.planKey then title = it.text end end
         A.SendLines(R:OutputLines(page.planKey, title), "전술표 출력")
     end))
-    f:Add(W.Button(f.parent, "공대원에게 임무 전송", 140, 24, function()
-        local n = BRL.Sync:SendRoles(page.planKey)
-        if n then BRL:Print("애드온 설치 공대원 %d명에게 개인 임무를 전송했습니다 (미설치 공대원은 채팅 출력 이용).", n) end
-    end, { perm = "sync.broadcast" }))
     f:Add(W.Dropdown(f.parent, 140, function()
         local items = {}
         for _, n in ipairs(R:Templates()) do items[#items + 1] = { value = n, text = n } end

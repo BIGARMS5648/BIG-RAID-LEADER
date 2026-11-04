@@ -461,6 +461,72 @@ function P:SetNeedsCheck(obligationId, flag, reason)
 end
 
 ---------------------------------------------------------------------------
+-- 미수금 조회 (독촉/입찰 제한/거래 안내)
+---------------------------------------------------------------------------
+-- memberKey 의 미수금 합계와 낙찰 목록. sessionId 가 없으면 모든 세션.
+function P:OutstandingFor(memberKey, sessionId)
+    local total, list = 0, {}
+    if not memberKey then return 0, list end
+    for _, aw in pairs(DB:T("awards")) do
+        if aw.status == "active" and aw.winnerKey == memberKey and (not sessionId or aw.sessionId == sessionId) then
+            local st = self:AwardStatus(aw)
+            if st.outstanding > 0 then
+                total = total + st.outstanding
+                list[#list + 1] = { award = aw, outstanding = st.outstanding }
+            end
+        end
+    end
+    table.sort(list, function(a, b) return (a.award.at or 0) < (b.award.at or 0) end)
+    return total, list
+end
+
+-- 세션의 미수금 보유자 목록 (금액 큰 순)
+function P:Debtors(sessionId)
+    local by = {}
+    for _, aw in pairs(DB:T("awards")) do
+        if aw.status == "active" and (not sessionId or aw.sessionId == sessionId) then
+            local st = self:AwardStatus(aw)
+            if st.outstanding > 0 then
+                local d = by[aw.winnerKey]
+                if not d then
+                    d = { key = aw.winnerKey, name = aw.winnerName or BRL.API.ShortName(aw.winnerKey), outstanding = 0, items = {} }
+                    by[aw.winnerKey] = d
+                end
+                d.outstanding = d.outstanding + st.outstanding
+                d.items[#d.items + 1] = BRL.Util.StripColors(BRL.Util.ItemNameFromLink(aw.itemLink) or aw.itemName or "?")
+            end
+        end
+    end
+    local out = {}
+    for _, d in pairs(by) do out[#out + 1] = d end
+    table.sort(out, function(a, b)
+        if a.outstanding ~= b.outstanding then return a.outstanding > b.outstanding end
+        return a.key < b.key
+    end)
+    return out
+end
+
+-- 분배 미지급 (memberKey 에게 줘야 할 남은 금액)
+function P:UnpaidPayoutFor(memberKey, sessionId)
+    local total, list = 0, {}
+    if not memberKey then return 0, list end
+    local stOk = {}
+    for _, st in pairs(DB:T("settlements")) do
+        if st.status ~= "draft" and (not sessionId or st.sessionId == sessionId) then stOk[st.id] = true end
+    end
+    for _, ob in pairs(DB:T("payouts")) do
+        if ob.memberKey == memberKey and not ob.voided and stOk[ob.settlementId] then
+            local st = self:ObligationStatus(ob)
+            if (st.remaining or 0) > 0 and not ob.hold then
+                total = total + st.remaining
+                list[#list + 1] = { ob = ob, remaining = st.remaining }
+            end
+        end
+    end
+    return total, list
+end
+
+---------------------------------------------------------------------------
 -- 세션 요약용
 ---------------------------------------------------------------------------
 function P:SessionCollection(sessionId)

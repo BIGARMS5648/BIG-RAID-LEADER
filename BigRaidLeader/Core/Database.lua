@@ -57,7 +57,6 @@ DB.ACCOUNT_DEFAULTS = {
         remainderMode = "keep",     -- keep(잔돈 보관) | carry(다음 정산 이월) | leader(공대장 지급)
     },
     chat = { reportChannel = "RAID" },
-    sync = { enabled = true, shareAuction = true, sharePayout = true, shareRoles = true, shareNotes = true, acceptFromLeader = true },
     buffs = { campReplacesClassBuff = true, expireWarnMinutes = 5, required = {} },
     readiness = { minDurability = 50 },
     command = { pullSeconds = 10, breakMinutes = 5 },
@@ -93,7 +92,7 @@ DB.ROOT_DEFAULTS = {
         memberRoles = {}, assignments = {}, orders = {},
         markerTemplates = {}, notes = {}, savedCommands = {},
         recruitment = { templates = {}, current = nil, applicants = {} },
-        readyManual = {}, readyReports = {}, campStatus = {}, buffProviders = {},
+        readyManual = {}, campStatus = {}, buffProviders = {},
     },
     bossPlans = {},
     progress = {},

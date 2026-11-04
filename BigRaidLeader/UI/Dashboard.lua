@@ -61,14 +61,55 @@ local function build(page)
     page.warnings = W.Paragraph(page, "", 520, 12)
     page.warnings:SetPoint("TOPLEFT", 4, -y - 22)
 
-    local member = W.Section(page, "내 정보 (공대원 화면)")
-    member:SetPoint("TOPLEFT", 540, -y)
-    page.memberInfo = W.Paragraph(page, "", 340, 12)
-    page.memberInfo:SetPoint("TOPLEFT", 540, -y - 22)
-    page.readyReport = W.Button(page, "준비 상태 보고", 120, 22, function()
-        if BRL.Sync:SendReadyReport() then BRL:Print("공대장에게 준비 상태(내구도)를 보고했습니다.") else BRL:Print("보고할 공대장이 없습니다.") end
-    end)
-    page.readyReport:SetPoint("TOPLEFT", 540, -y - 200)
+    local live = W.Section(page, "진행 현황")
+    live:SetPoint("TOPLEFT", 540, -y)
+    page.liveInfo = W.Paragraph(page, "", 340, 12)
+    page.liveInfo:SetPoint("TOPLEFT", 540, -y - 22)
+end
+
+-- 공대장 진행 현황 요약 줄 (대시보드/HUD 공용)
+function UI.LiveSummary(session)
+    local info = {}
+    local auc = BRL.Auctions:GetActive()
+    if auc then
+        local remain = math.max(0, math.ceil((auc.endsClock or 0) - BRL.Util.Clock()))
+        info[#info + 1] = string.format("경매: %s 최고 %s%s %s", BRL.Util.StripColors(auc.itemName or "?"),
+            auc.highAmount and Money.Format(auc.highAmount) or "없음", auc.highBidder and (" (" .. API.ShortName(auc.highBidder) .. ")") or "",
+            BRL.Auctions:IsCounting(auc) and T.Color("red", "카운트 " .. remain) or (remain .. "초"))
+    else
+        local queued = session and #BRL.Auctions:Queue(session.id) or 0
+        info[#info + 1] = "경매: 진행 없음" .. (queued > 0 and (" · 대기 " .. queued .. "건") or "")
+    end
+    local rp = BRL.Recruitment:Progress()
+    if BRL.Recruitment:IsActive() then
+        info[#info + 1] = string.format("모집: 진행 중 %d/%d (부족 %d)", rp.have, rp.size, math.max(0, rp.size - rp.have))
+    end
+    local pc = BRL.CombatPrep.PullCheck and BRL.CombatPrep:PullCheck()
+    if pc then info[#info + 1] = "풀링 판정: " .. T.Color(pc.color, pc.label) .. (pc.reasons[1] and (" - " .. pc.reasons[1]) or "") end
+    local prep = BRL.CombatPrep.last
+    if prep then
+        info[#info + 1] = string.format("전투 준비(%s): 음식 누락 %d · %s 누락 %d", BRL.Util.FormatClock(prep.at), #prep.noFood, BRL.CombatPrep:MainLabel(), #prep.noMain)
+    end
+    if session then
+        local st = BRL.Settlement:ForSession(session.id)
+        if st and st.status ~= "draft" then
+            local pay = BRL.Settlement:PaymentState(st.id)
+            local done, total = 0, 0
+            for _, row in ipairs(pay.rows) do
+                total = total + 1
+                if row.remaining == 0 then done = done + 1 end
+            end
+            info[#info + 1] = string.format("분배 지급: %d/%d명 완료 · 남은 %s", done, total, Money.Format(pay.unpaid))
+        end
+        local sum = BRL.Ledger:Summary(session.id)
+        if sum.outstanding > 0 then
+            local debtors = BRL.Payments:Debtors(session.id)
+            info[#info + 1] = string.format("미수금: %s (%d명)", Money.Format(sum.outstanding), #debtors)
+        end
+    end
+    local cur = BRL.TradeTracker:GetCurrent()
+    if cur then info[#info + 1] = "거래 중: " .. (cur.partnerName or "?") end
+    return info
 end
 
 local function setTile(page, key, text, color)
@@ -153,29 +194,8 @@ local function refresh(page)
     end
     page.warnings:SetText(#lines > 0 and table.concat(lines, "\n") or T.Color("green", "특이 사항 없음"))
 
-    -- 공대원 화면 (자신의 정보)
-    local me = BRL.Roster:Get(BRL.playerKey)
-    local R = BRL.Sync.received
-    local info = {}
-    info[#info + 1] = "내 파티: " .. (me and (me.subgroup .. "파티") or "-")
-    local role = BRL.Roles:GetMemberRole(BRL.playerKey, me)
-    info[#info + 1] = "내 역할: " .. BRL.Label("CR_", (R.roles and R.roles.role ~= "" and R.roles.role) or role or "NONE")
-    local duties = BRL.Roles:DutiesFor("default", BRL.playerKey)
-    local dutyText = (R.roles and R.roles.duties ~= "" and R.roles.duties) or (#duties > 0 and table.concat(duties, ", ")) or "-"
-    info[#info + 1] = "내 임무: " .. dutyText
-    if R.notices[1] then info[#info + 1] = "공지: " .. R.notices[1].text end
-    if R.auction and R.auction.status == "active" then
-        local remain = math.max(0, R.auction.remaining - (BRL.Util.Clock() - (R.auction.clock or 0)))
-        info[#info + 1] = string.format("현재 경매: %s 최고 %s (%s) %d초", R.auction.item or "?", Money.Format(R.auction.high), R.auction.bidder or "-", remain)
-    end
-    if R.awards[1] then info[#info + 1] = "최근 낙찰: " .. (R.awards[1].item or "?") .. " → " .. (R.awards[1].winner or "?") .. " " .. Money.Format(R.awards[1].amount) end
-    local payout = R.payout or BRL.char.lastPayout
-    if payout then
-        info[#info + 1] = "내 분배 예정액: " .. Money.Format(payout.amount) .. " (지급 " .. Money.Format(payout.paid) .. ", " .. BRL.Label("PAY_", payout.status) .. ")"
-    end
-    local mn = API.GetOwnDurability()
-    if mn then info[#info + 1] = "내 장비 내구도(최저): " .. mn .. "%" end
-    page.memberInfo:SetText(table.concat(info, "\n"))
+    -- 진행 현황 (공대장 운영 요약)
+    page.liveInfo:SetText(table.concat(BRL.UI.LiveSummary(session), "\n"))
 end
 
 UI:RegisterPage("dashboard", { title = L.MENU_DASHBOARD, order = 1, build = build, refresh = refresh })

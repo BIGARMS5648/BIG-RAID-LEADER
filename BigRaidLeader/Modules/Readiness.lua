@@ -28,8 +28,6 @@ function Ready:OnReadyCheck(_, initiator, timeLeft)
     end
     local leaderKey = self.check.initiator and API.NormalizeName(self.check.initiator)
     if leaderKey then self.check.results[leaderKey] = "ready" end
-    -- 내 상태 보고 (애드온 설치 공대원 → 공대장)
-    if BRL.Sync then BRL.Sync:SendReadyReport() end
     changed()
 end
 
@@ -81,13 +79,6 @@ function Ready:ResetManual()
     changed()
 end
 
--- 다른 공대원의 보고 (Sync)
-function Ready:StoreReport(key, report)
-    BRL.db.raidOps.readyReports[key] = report
-    report.at = U.Now()
-    changed()
-end
-
 local STATUS_LABEL = {
     ready = "준비 완료", notready = "준비 안 됨", waiting = "응답 대기", noresponse = "미응답",
     offline = "오프라인", unknown = "확인 불가",
@@ -105,13 +96,8 @@ function Ready:Rows()
         if not m.online then row.ready = "offline" end
         row.dead = m.dead
         row.inInstance = (m.zone == nil) or (myZone ~= nil and m.zone == myZone)
-        if m.key == BRL.playerKey then
-            local mn = API.GetOwnDurability()
-            row.durability = mn
-        else
-            local rep = BRL.db.raidOps.readyReports[m.key]
-            if rep and (U.Now() - (rep.at or 0)) < 3600 then row.durability = rep.durability end
-        end
+        -- 내구도는 게임 API로 본인 것만 확인 가능 (다른 공대원은 수동 점검)
+        if m.key == BRL.playerKey then row.durability = API.GetOwnDurability() end
         row.lowDurability = row.durability ~= nil and row.durability < minDur
         row.manual = {}
         for _, item in ipairs(BRL.Data.ReadyManualItems) do row.manual[item.key] = self:GetManual(m.key, item.key) end

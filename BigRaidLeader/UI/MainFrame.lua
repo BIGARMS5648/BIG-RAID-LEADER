@@ -233,8 +233,11 @@ end
 function UI:UpdateHeader()
     if not self.frame then return end
     local role = BRL.Perm:GetRole()
-    local colors = { leader = "gold", assistant = "blue", member = "white", solo = "muted", unknown = "red" }
-    self.roleBadge:SetText("권한: " .. T.Color(colors[role] or "white", BRL.Perm:RoleLabel(role)))
+    if BRL.Perm:IsOperator(role) then
+        self.roleBadge:SetText(T.Color(role == "leader" and "gold" or "muted", role == "leader" and "공격대장" or "그룹 밖 (준비/정산)"))
+    else
+        self.roleBadge:SetText(T.Color("red", "공대장 아님 (" .. BRL.Perm:RoleLabel(role) .. ") · 잠김"))
+    end
     self.combatBadge:SetText(API.InCombat() and "전투 중 (일부 기능 제한)" or "")
     local s = BRL.Session:GetActive()
     self.sessionDrop:SetValue(s and s.id or nil, true)
@@ -294,7 +297,7 @@ end
 function UI:SetPermBanner(page, action)
     if not page.permBanner then return end
     if action and not BRL.Perm:Can(action) then
-        page.permBanner:SetText("읽기 전용 (" .. BRL.Perm:RoleLabel() .. ")")
+        page.permBanner:SetText("공대장 권한 없음 · 편집 잠김")
     else
         page.permBanner:SetText("")
     end

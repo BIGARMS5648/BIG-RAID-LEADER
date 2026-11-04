@@ -1,6 +1,7 @@
 -- BIG RAID LEADER - 권한 관리
--- 권한은 게임이 실제로 부여한 공격대장/부공대장 여부(공식 API)만으로 결정한다.
--- 별도 관리자 직책을 만들지 않으며, 금융 장부의 최종 책임자는 공대장 한 명이다.
+-- 이 애드온은 공격대장 전용이다. 권한은 게임이 실제로 부여한 공격대장 여부(공식 API)만으로 결정한다.
+-- 공대장이 아닌 상태(부공대장/공대원)에서는 모든 운영 기능이 잠기고 자신의 데이터 열람만 가능하다.
+-- 그룹 밖(SOLO)은 사전 준비/해산 후 정산을 위해 공대장과 같은 편집 권한을 가진다.
 local _, BRL = ...
 local L = BRL.L
 local API = BRL.API
@@ -38,26 +39,33 @@ function Perm:RoleLabel(role)
     return L.ROLE_UNKNOWN
 end
 
--- 행동별 허용 역할
+-- 행동별 허용 역할 (공대장 전용 애드온: 편집/실행은 공대장 또는 그룹 밖에서만)
 --  finance.edit    : 경매 진행/낙찰, 거래-장부 연결, 장부 수정, 정산 계산/확정
 --  finance.view    : 로컬 금융 데이터 열람 (각자 자신의 SavedVariables)
 --  raid.plan       : 편성/역할/전술/모집/공략 편집
---  raid.command    : 준비 확인, 풀링, 공격대 경보, 징표 (게임이 부공대장에게 허용하는 범위)
---  raid.groups.apply : 실제 파티 이동 (게임상 공대장/부공대장 가능)
---  raid.invite     : 초대 (게임상 공대장/부공대장 가능)
+--  raid.command    : 준비 확인, 풀링, 공격대 경보, 징표
+--  raid.groups.apply : 실제 파티 이동 (그룹 안 공대장)
+--  raid.invite     : 초대
 --  trade.own       : 내 거래 기록/개인 거래 분류
+--  data.manage     : 내 저장 데이터 백업/복원/보관
+local LEADER = { leader = true, solo = true }
+local ANYONE = { leader = true, solo = true, assistant = true, member = true, unknown = true }
 local MATRIX = {
-    ["finance.edit"]      = { leader = true, solo = true },
-    ["finance.view"]      = { leader = true, solo = true, assistant = true, member = true, unknown = true },
-    ["raid.plan"]         = { leader = true, solo = true },
-    ["raid.command"]      = { leader = true, assistant = true, solo = true },
-    ["raid.groups.apply"] = { leader = true, assistant = true },
-    ["raid.invite"]       = { leader = true, assistant = true, solo = true },
-    ["trade.own"]         = { leader = true, solo = true, assistant = true, member = true, unknown = true },
-    ["sync.broadcast"]    = { leader = true, assistant = true },
-    ["sync.finance"]      = { leader = true },
+    ["finance.edit"]      = LEADER,
+    ["finance.view"]      = ANYONE,
+    ["raid.plan"]         = LEADER,
+    ["raid.command"]      = LEADER,
+    ["raid.groups.apply"] = { leader = true },
+    ["raid.invite"]       = LEADER,
+    ["trade.own"]         = ANYONE,
     ["data.manage"]       = { leader = true, solo = true, assistant = true, member = true },
 }
+
+-- 공대장으로 운영 중인지 (그룹 안 공대장 또는 그룹 밖)
+function Perm:IsOperator(role)
+    role = role or self:GetRole()
+    return role == self.LEADER or role == self.SOLO
+end
 
 function Perm:Can(action, role)
     role = role or self:GetRole()
@@ -95,10 +103,8 @@ function Perm:Require(action, quiet)
         local role = self:GetRole()
         if role == self.UNKNOWN then
             BRL:Print("%s: 권한 정보를 확인할 수 없어 제한되었습니다.", L.NO_PERMISSION)
-        elseif action == "finance.edit" or action == "raid.plan" or action == "sync.finance" then
-            BRL:Print("%s: %s (현재: %s)", L.NO_PERMISSION, L.LEADER_ONLY, self:RoleLabel(role))
         else
-            BRL:Print("%s (현재: %s)", L.NO_PERMISSION, self:RoleLabel(role))
+            BRL:Print("%s: %s (현재: %s)", L.NO_PERMISSION, L.LEADER_ONLY, self:RoleLabel(role))
         end
     end
     return false
@@ -108,19 +114,6 @@ function Perm:RequireSession(session, quiet)
     local ok, reason = self:CanEditSession(session)
     if not ok and not quiet then BRL:Print("%s: %s", L.NO_PERMISSION, reason or "") end
     return ok, reason
-end
-
--- 다른 플레이어가 보낸 동기화 메시지의 발신자 권한
-function Perm:SenderRole(senderKey)
-    if not senderKey then return self.UNKNOWN end
-    for _, m in ipairs(API.GetGroupRoster()) do
-        if m.key == senderKey then
-            if m.isLeader then return self.LEADER end
-            if m.isAssistant then return self.ASSISTANT end
-            return self.MEMBER
-        end
-    end
-    return nil -- 그룹 밖
 end
 
 -- 역할 변경 감지

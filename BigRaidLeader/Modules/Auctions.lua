@@ -203,7 +203,6 @@ function A:Start(id)
         BRL.ChatOut:Send("입찰은 공격대 채팅" .. (BRL.acct.auction.bidChannels.WHISPER and " 또는 귓속말" or "") .. "로 금액만 입력하세요 (예: 1500)")
     end
     self:StartTicker()
-    if BRL.Sync then BRL.Sync:BroadcastAuction(auc) end
     changed()
     return true
 end
@@ -325,7 +324,6 @@ function A:ApplyBid(auc, bid)
         BRL.ChatOut:Send(string.format("최고 입찰: %s %s (다음 최소 %s)", bid.bidderName or "?",
             Money.Format(bid.amount), Money.Format(self:NextMinimum(auc))))
     end
-    if BRL.Sync then BRL.Sync:BroadcastAuction(auc) end
     if auc.buyout and auc.buyout > 0 and bid.amount >= auc.buyout then
         self:End(auc.id, "buyout")
     end
@@ -397,7 +395,6 @@ function A:ConfirmAward(id, bidId)
     auc.awardId = award.id
     DB:Audit("award.create", "award", award.id, { auction = auc.id, winner = award.winnerKey, amount = award.amount })
     BRL.ChatOut:Announce(string.format("[낙찰] %s → %s %s", auc.itemLink, award.winnerName, Money.Format(award.amount)))
-    if BRL.Sync then BRL.Sync:BroadcastAward(award) end
     changed()
     BRL.Events:Fire(BRL.Events.MSG.LEDGER_CHANGED)
     if award.winnerKey == BRL.playerKey then

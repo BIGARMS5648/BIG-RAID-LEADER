@@ -46,7 +46,6 @@ Modules\BossPlans.lua
 Modules\RaidProgress.lua
 Modules\LootDistribution.lua
 Modules\Statistics.lua
-Modules\Sync.lua
 Modules\Recruitment.lua
 Modules\Composition.lua
 Modules\CombatPrep.lua

@@ -220,10 +220,3 @@ end
 function R:History(stId)
     return DB:List("reports", function(r) return r.settlementId == stId end, "at", true)
 end
-
--- 공격대원용: 개인 분배 예정액/지급 상태 안내 문구
-function R:MemberPayoutLine(ob)
-    local s = BRL.Payments:ObligationStatus(ob)
-    return string.format("[BRL] %s님 분배 예정액 %s / 지급 %s / 상태: %s", ob.name or "?", Money.Format(ob.amount),
-        Money.Format(s.paid), BRL.Label("PAY_", s.status))
-end

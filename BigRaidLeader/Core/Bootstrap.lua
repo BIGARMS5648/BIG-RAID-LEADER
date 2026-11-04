@@ -9,7 +9,6 @@ BRL.TITLE = "BIG RAID LEADER"
 BRL.TITLE_KO = "빅 레이드 리더"
 BRL.SHORT = "BRL"
 BRL.VERSION = "1.2.0"
-BRL.COMM_PREFIX = "BRL1"
 
 do
     local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata

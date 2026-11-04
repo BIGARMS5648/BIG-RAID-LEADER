@@ -360,7 +360,7 @@ function API.GetReadyCheckStatus(unit)
 end
 
 ---------------------------------------------------------------------------
--- 채팅 / 애드온 통신
+-- 채팅
 ---------------------------------------------------------------------------
 local chatSend = fn("C_ChatInfo.SendChatMessage") or G.SendChatMessage
 mark("SendChatMessage", chatSend ~= nil)
@@ -399,25 +399,6 @@ function API.SendChatRaw(msg, chatType, target)
     local ok, err = pcall(chatSend, msg, chatType, nil, target)
     if not ok then return false, tostring(err) end
     return true
-end
-
-function API.SendAddonRaw(prefix, msg, chatType, target)
-    local f = fn("C_ChatInfo.SendAddonMessage") or G.SendAddonMessage
-    if not mark("SendAddonMessage", f ~= nil) then return false, "unsupported" end
-    if API.InChatLockdown() then return false, "lockdown" end
-    local ok, res = pcall(f, prefix, msg, chatType, target)
-    if not ok then return false, tostring(res) end
-    -- 12.x 는 Enum.SendAddonMessageResult 를 반환 (0 = Success)
-    if type(res) == "number" and res ~= 0 then return false, "result:" .. res end
-    if res == false then return false, "failed" end
-    return true
-end
-
-function API.RegisterAddonPrefix(prefix)
-    local f = fn("C_ChatInfo.RegisterAddonMessagePrefix") or G.RegisterAddonMessagePrefix
-    if not mark("RegisterAddonMessagePrefix", f ~= nil) then return false end
-    local ok = pcall(f, prefix)
-    return ok
 end
 
 ---------------------------------------------------------------------------
@@ -670,8 +651,7 @@ API.CHECK_LIST = {
     "GetRaidRosterInfo", "UnitIsGroupLeader", "UnitIsGroupAssistant", "GetNumGroupMembers",
     "SetRaidSubgroup", "SwapRaidSubgroup", "DoReadyCheck", "GetReadyCheckStatus",
     "C_PartyInfo.DoCountdown", "C_PartyInfo.InviteUnit", "C_PartyInfo.ConvertToRaid",
-    "C_ChatInfo.SendChatMessage", "SendChatMessage", "C_ChatInfo.SendAddonMessage",
-    "C_ChatInfo.RegisterAddonMessagePrefix", "C_UnitAuras.GetAuraDataByIndex",
+    "C_ChatInfo.SendChatMessage", "SendChatMessage", "C_UnitAuras.GetAuraDataByIndex",
     "C_Item.GetItemInfo", "GetItemInfo", "GetLootSlotLink", "GetInventoryItemDurability",
     "C_Timer.After", "C_Timer.NewTicker", "GetServerTime", "UnitFullName", "GetNormalizedRealmName",
     "GetChannelList", "RaidNotice_AddMessage",

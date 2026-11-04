@@ -19,7 +19,6 @@ end
 local function onLogin()
     BRL.DB:RebindCharacter()
     BRL.Perm:OnEnable()
-    API.RegisterAddonPrefix(BRL.COMM_PREFIX)
     BRL:EnableModules()
     BRL.Migration:AutoBackup()
     BRL.Events:Register("PLAYER_REGEN_DISABLED", Init, function() BRL.Events:Fire(BRL.Events.MSG.COMBAT_CHANGED, true) end)

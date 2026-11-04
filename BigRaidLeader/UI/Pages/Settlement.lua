@@ -290,11 +290,6 @@ local function build(page)
     f2:Add(W.Button(f2.parent, "간략 보고서", 84, 24, function() if page.st then A.SendLines(R:BuildBrief(page.st.id), "간략 정산 보고서") end end))
     f2:Add(W.Button(f2.parent, "상세 보고서", 84, 24, function() if page.st then D.CopyText("상세 정산 보고서", R:ToText(R:BuildDetailed(page.st.id))) end end))
     f2:Add(W.Button(f2.parent, "디스코드", 70, 24, function() if page.st then D.CopyText("디스코드 게시용", R:ToText(R:BuildDiscord(page.st.id))) end end))
-    f2:Add(W.Button(f2.parent, "분배액 안내", 84, 24, function()
-        if not page.st then return end
-        local n = BRL.Sync:SendPayouts(page.st.id)
-        BRL:Print("애드온 설치 공대원 %d명에게 개인 분배 예정액을 전송했습니다.", n or 0)
-    end, { perm = "sync.finance", tooltip = { "각 공대원에게 본인의 분배 예정액/지급 상태만 전송합니다." } }))
     f2:Add(W.Button(f2.parent, "이력", 50, 24, function()
         if not page.st then return end
         local lines = {}

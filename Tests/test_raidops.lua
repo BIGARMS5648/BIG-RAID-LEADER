@@ -303,54 +303,6 @@ T.test("기타 분배: 주사위 / DKP / EPGP / Council / 우선순위 / 중복 
     T.eq(r.winnerKey, "대원2-아즈샤라")
 end)
 
-T.test("애드온 동기화: 공지/역할/분배액 전송, 권한 없는 발신 거부, 알 수 없는 메시지 거부", function()
-    local BRL = raid(5)
-    local s = BRL.Session:Create({})
-    T.ok(BRL.Sync:SendNotice("5분 후 시작"))
-    M.Advance(2)
-    T.ok(#M.addonSent >= 1)
-    T.eq(M.addonSent[1].prefix, "BRL1")
-    -- 수신: 공대장이 아닌 사람이 보낸 분배액 → 거부
-    M.player.rank = 0
-    M.group.members[1].rank = 0
-    M.group.members[2].rank = 2
-    local before = BRL.Sync.rejected
-    M.Fire("CHAT_MSG_ADDON", "BRL1", "PY\t1000\t0\tpending", "WHISPER", "대원3-아즈샤라")
-    T.eq(BRL.Sync.rejected, before + 1, "공대원 발신 분배액 거부")
-    M.Fire("CHAT_MSG_ADDON", "BRL1", "PY\t50000000\t0\tpending", "WHISPER", "대원2-아즈샤라")
-    T.eq(BRL.Sync.received.payout.amount, 50000000, "공대장 발신 수락")
-    M.Fire("CHAT_MSG_ADDON", "BRL1", "LEDGER_EDIT\tTR-1\t0", "WHISPER", "대원2-아즈샤라")
-    T.eq(BRL.Sync.rejected, before + 2, "장부 수정 요청 거부")
-    -- 긴 메시지 분할 전송/재조립
-    M.group.members[1].rank = 2
-    M.group.members[2].rank = 0
-    M.player.rank = 2
-    M.ClearSent()
-    local long = string.rep("가나다라마바사아자차카타파하", 40)
-    BRL.Sync:Send("NT", "NT\t" .. long)
-    M.Advance(10)
-    T.ok(#M.addonSent > 1, "분할")
-    for _, m in ipairs(M.addonSent) do T.ok(#m.msg <= 255, "255 이하") end
-    M.group.members[1].rank = 0
-    M.group.members[2].rank = 2
-    M.player.rank = 0
-    for _, m in ipairs(M.addonSent) do M.Fire("CHAT_MSG_ADDON", "BRL1", m.msg, "RAID", "대원2-아즈샤라") end
-    T.eq(BRL.Sync.received.notices[1].text, long, "재조립")
-    -- 채팅 잠금 중 대기 후 전송
-    M.player.rank = 2
-    M.group.members[1].rank = 2
-    M.group.members[2].rank = 0
-    M.ClearSent()
-    M.lockdown = true
-    BRL.Sync:SendNotice("잠금 테스트")
-    M.Advance(2)
-    T.eq(#M.addonSent, 0, "잠금 중 미전송")
-    M.lockdown = false
-    M.Advance(5)
-    T.eq(#M.addonSent, 1, "잠금 해제 후 전송")
-    T.ok(s)
-end)
-
 T.test("모집: 진행 상황 / 문구 / 귓속말 지원자 / 중복 / 승인·거절·보류 / 채널 전송", function()
     local BRL = raid(5)
     BRL.Recruitment:SetField("raidKey", "BARROW_DEEPS")
