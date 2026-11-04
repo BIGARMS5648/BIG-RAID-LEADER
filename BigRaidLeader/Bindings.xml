@@ -14,6 +14,12 @@
 	<Binding name="BRL_COMBATPREP" category="ADDONS">
 		BigRaidLeader_Binding("PREP")
 	</Binding>
+	<Binding name="BRL_AUCTIONCOUNT" category="ADDONS">
+		BigRaidLeader_Binding("COUNT")
+	</Binding>
+	<Binding name="BRL_AUCTIONCOUNTCANCEL" category="ADDONS">
+		BigRaidLeader_Binding("COUNTCANCEL")
+	</Binding>
 	<Binding name="BRL_AUCTION" category="ADDONS">
 		BigRaidLeader_Binding("AUCTION")
 	</Binding>

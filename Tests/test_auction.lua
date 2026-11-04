@@ -301,3 +301,163 @@ T.test("경매 대기열 순서 변경", function()
     T.ok(BRL.Auctions:StartNext())
     T.eq(b.status, "active")
 end)
+
+local function announced()
+    local out = {}
+    for _, s in ipairs(M.sent) do out[#out + 1] = s.msg end
+    return out
+end
+
+T.test("경매 카운트 5초: 5,4,3,2,1 공지 후 입찰 마감", function()
+    local BRL = setup()
+    local auc = runAuction(link(30, "카운트템"), { { "대원2", "500" } })
+    M.ClearSent()
+    T.eq(BRL.Auctions:CountSeconds(), 5, "기본 5초")
+    T.ok(BRL.Auctions:StartCount())
+    T.ok(BRL.Auctions:IsCounting(auc))
+    T.no(BRL.Auctions:StartCount(), "중복 카운트 거부")
+    M.Advance(2.1)
+    T.eq(auc.status, "active", "카운트 중에는 진행")
+    M.Advance(3.5)
+    T.eq(auc.status, "ended", "5초 후 마감")
+    T.eq(auc.endReason, "count")
+    local msgs = table.concat(announced(), "\n")
+    T.contains(msgs, "[카운트] " .. auc.itemLink .. " 최고 대원2 500골드 - 5")
+    for _, n in ipairs({ "4", "3", "2", "1" }) do
+        local found = false
+        for _, m in ipairs(announced()) do if m == n then found = true end end
+        T.ok(found, "카운트 " .. n)
+    end
+    T.contains(msgs, "[입찰 마감]")
+    T.ok(BRL.Auctions:ConfirmAward(auc.id), "마감 후 낙찰 확정")
+end)
+
+T.test("카운트 취소: 입찰 계속 + 남은 시간 복원", function()
+    local BRL = setup()
+    local auc = runAuction(link(31, "취소템"), { { "대원2", "300" } })
+    M.Advance(25) -- 원래 남은 시간 약 5초
+    T.ok(BRL.Auctions:StartCount())
+    M.Advance(2)
+    M.ClearSent()
+    T.ok(BRL.Auctions:CancelCount(nil, "manual"))
+    T.no(BRL.Auctions:IsCounting(auc))
+    T.eq(auc.status, "active")
+    T.ok(BRL.Auctions:Remaining(auc) >= 9.9, "최소 10초 확보")
+    M.Advance(1)
+    T.contains(announced(), "[카운트 취소] 입찰 계속")
+    T.no(BRL.Auctions:CancelCount(nil, "manual"), "카운트 없으면 거부")
+    -- 남은 시간이 넉넉하면 원래 시간으로 복원
+    local auc2 = setup() and runAuction(link(32, "복원템"), {})
+    BRL.Auctions:StartCount()
+    BRL.Auctions:CancelCount(nil, "manual")
+    T.ok(BRL.Auctions:Remaining(auc2) > 25, "원래 남은 시간 복원")
+end)
+
+T.test("카운트 중 새 입찰 → 자동 카운트 취소 (설정으로 끌 수 있음)", function()
+    local BRL = setup()
+    local auc = runAuction(link(33, "입찰템"), { { "대원2", "300" } })
+    BRL.Auctions:StartCount()
+    M.ClearSent()
+    M.Fire("CHAT_MSG_RAID", "400", "대원3-아즈샤라")
+    T.no(BRL.Auctions:IsCounting(auc), "새 입찰로 취소")
+    T.eq(auc.highBidder, "대원3-아즈샤라")
+    M.Advance(5) -- 채팅 대기열(0.35초 간격) 소진
+    T.contains(announced(), "[카운트 취소] 새 입찰 400골드 - 입찰 계속")
+    BRL.acct.auction.cancelCountOnBid = false
+    BRL.Auctions:StartCount()
+    M.Fire("CHAT_MSG_RAID", "500", "대원4-아즈샤라")
+    T.ok(BRL.Auctions:IsCounting(auc), "설정 끄면 카운트 유지")
+    M.Advance(6)
+    T.eq(auc.status, "ended")
+    T.eq(auc.highBidder, "대원4-아즈샤라")
+end)
+
+T.test("마감 직전 자동 카운트다운도 취소 가능 / 카운트 초 설정 / 권한", function()
+    local BRL = setup()
+    local auc = runAuction(link(34, "자동템"), { { "대원2", "300" } })
+    M.Advance(27)
+    T.ok(BRL.Auctions:CancelCount(nil, "manual"), "자동 카운트다운 취소")
+    T.ok(BRL.Auctions:Remaining(auc) >= 9.9)
+    BRL.acct.auction.countdownFrom = 3
+    T.eq(BRL.Auctions:CountSeconds(), 3)
+    BRL.acct.auction.countdownFrom = 99
+    T.eq(BRL.Auctions:CountSeconds(), 10, "최대 10초")
+    BRL.acct.auction.countdownFrom = 5
+    M.player.rank = 0
+    M.group.members[1].rank = 0
+    M.group.members[2].rank = 2
+    T.no(BRL.Auctions:StartCount(), "공대원은 카운트 불가")
+    -- 단축키 / 명령어
+    M.player.rank = 2
+    M.group.members[1].rank = 2
+    M.group.members[2].rank = 0
+    BigRaidLeader_Binding("COUNT")
+    T.ok(BRL.Auctions:IsCounting(auc), "단축키 카운트")
+    SlashCmdList.BIGRAIDLEADER("카운트취소")
+    T.no(BRL.Auctions:IsCounting(auc), "명령어 카운트 취소")
+end)
+
+T.test("공대장 본인 낙찰 → 거래 로그 '본인 지급' 기록 + 수금/장부 반영", function()
+    local BRL = setup()
+    local auc = runAuction(link(40, "공대장템"), { { "대원2", "500" }, { "공대장", "800" } })
+    T.eq(auc.highBidder, BRL.playerKey, "공대장 채팅 입찰 인정")
+    M.Advance(31)
+    local aw = BRL.Auctions:ConfirmAward(auc.id)
+    T.eq(aw.winnerKey, BRL.playerKey)
+    T.ok(BRL.Dialogs.confirm and BRL.Dialogs.confirm:IsShown(), "본인 낙찰 기록 여부 확인 창")
+    local res, err = BRL.Payments:PayAwardFromSelf(aw.id, 900 * G)
+    T.no(res, "미수금 초과 거부") T.eq(err, "overpay")
+    res = BRL.Payments:PayAwardFromSelf(aw.id, 300 * G)
+    T.ok(res, "부분 기록")
+    T.eq(BRL.Payments:AwardStatus(aw).outstanding, 500 * G)
+    -- 확인 창의 [지금 기록] = 남은 금액 전부
+    BRL.Dialogs.confirm.accept:Click()
+    local st = BRL.Payments:AwardStatus(aw)
+    T.eq(st.status, "paid", "완납")
+    T.ok(aw.delivered, "아이템 전달 완료 표시")
+    local selfTrades = BRL.TradeJournal:Query({})
+    local tr = selfTrades[1]
+    T.eq(tr.source, "self")
+    T.eq(tr.partnerName, "공대장 (본인)")
+    T.eq(BRL.TradeJournal:StatusLabel(tr), "본인 지급")
+    T.eq(tr.purpose, "auction_payment")
+    T.ok(BRL.TradeJournal:IsCounted(tr))
+    local sum = BRL.Ledger:Summary(aw.sessionId)
+    T.eq(sum.collected, 800 * G, "실제 수금에 반영")
+    T.eq(sum.income, 800 * G, "장부 수입")
+    T.eq(#BRL.Migration:Validate(), 0, "무결성")
+    T.contains(BRL.TradeJournal:ExportCSV(), "본인 지급")
+end)
+
+T.test("본인 지급은 공대장 본인 낙찰만 / 취소·복원 가능 / 정산 잔액 검증", function()
+    local BRL = setup()
+    local a1 = runAuction(link(41, "남의템"), { { "대원3", "400" } })
+    M.Advance(31)
+    local other = BRL.Auctions:ConfirmAward(a1.id)
+    T.no(BRL.Payments:PayAwardFromSelf(other.id), "다른 공대원 낙찰은 불가")
+    local a2 = runAuction(link(42, "내템"), { { "공대장", "1000" } })
+    M.Advance(31)
+    local mine = BRL.Auctions:ConfirmAward(a2.id)
+    local alloc, tr = BRL.Payments:PayAwardFromSelf(mine.id)
+    T.ok(alloc)
+    -- 되돌리기: 연결 해제 → 기록 취소
+    T.ok(BRL.Payments:UnlinkAuction(alloc.id, "잘못 기록"))
+    T.ok(BRL.TradeJournal:Void(tr.id, "잘못 기록"))
+    T.eq(BRL.Payments:AwardStatus(mine).outstanding, 1000 * G)
+    BRL.Payments:PayAwardFromSelf(mine.id)
+    -- 대원3 수금 후 정산 → 전원 지급 → 잔액 검증 통과
+    local t3 = BRL.TradeJournal:AddManual({ partner = "대원3", received = 400 * G, note = "경매금", purpose = "auction_payment" })
+    BRL.Payments:AllocateAuction(t3.id, other.id, 400 * G)
+    local s = BRL.Session:GetActive()
+    local st = BRL.Settlement:Create(s.id)
+    T.eq(BRL.Settlement:Compute(st, "confirmed").gross, 1400 * G, "본인 낙찰금 포함 총수입")
+    BRL.Settlement:Finalize(st.id, { force = true })
+    for _, ob in ipairs(BRL.Settlement:Obligations(st.id)) do
+        if ob.memberKey == BRL.playerKey then BRL.Payments:PaySelf(ob.id)
+        else
+            local p = BRL.TradeJournal:AddManual({ partner = BRL.API.ShortName(ob.memberKey), given = ob.amount, note = "분배", purpose = "payout" })
+            BRL.Payments:AllocatePayout(p.id, ob.id, ob.amount)
+        end
+    end
+    for _, c in ipairs(BRL.Settlement:Validate(st.id)) do T.ok(c.ok, c.label .. " " .. tostring(c.detail)) end
+end)

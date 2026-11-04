@@ -208,7 +208,7 @@ function A.TradeDetail(tr)
         "받은 골드: " .. Money.Format(eff.received) .. "   지급 골드: " .. Money.Format(eff.given),
         "상태: " .. J:StatusLabel(tr) .. " (검증: " .. tostring(tr.verification) .. ")",
         "목적: " .. J:PurposeLabel(tr.purpose) .. "   세션: " .. tostring(tr.sessionId and (BRL.Session:Get(tr.sessionId) or {}).name or "-"),
-        "기록 방식: " .. (tr.source == "manual" and "수동" or "자동"),
+        "기록 방식: " .. (tr.source == "manual" and "수동" or (tr.source == "self" and "본인 지급 (공대장 본인 낙찰 등)" or "자동")),
     }
     if tr.adjusted then lines[#lines + 1] = "원본 금액: 받은 " .. Money.Format(tr.targetMoney) .. " / 지급 " .. Money.Format(tr.playerMoney) .. " (정정 사유: " .. tostring(tr.adjusted.reason) .. ")" end
     if tr.moneyDelta then lines[#lines + 1] = "실제 보유 골드 변화: " .. Money.Format(tr.moneyDelta, { sign = true }) end
@@ -281,6 +281,22 @@ function A.ManualBid(auc)
         if bid and bid.accepted then return true end
         return false, why
     end, { description = "다음 최소 입찰가: " .. Money.Format(BRL.Auctions:NextMinimum(auc)) })
+end
+
+-- 공대장 본인 낙찰금: 본인 지갑 → 공대 금액 (거래 로그 "본인 지급")
+function A.PayAwardFromSelf(aw)
+    local P = BRL.Payments
+    if aw.winnerKey ~= BRL.playerKey then D.Message("공대장 본인이 낙찰받은 아이템만 본인 지급으로 기록할 수 있습니다.") return end
+    local st = P:AwardStatus(aw)
+    if st.outstanding <= 0 then D.Message("이미 낙찰금이 모두 기록되었습니다.") return end
+    D.Input("본인 낙찰금 기록", {
+        { key = "amount", label = "낙찰금", type = "money", default = st.outstanding, required = true },
+    }, function(v)
+        local res, err = P:PayAwardFromSelf(aw.id, v.amount)
+        if res then BRL:Print("본인 낙찰금 %s을 거래 로그에 '본인 지급'으로 기록했습니다.", Money.Format(v.amount)) return true end
+        if err == "overpay" then return false, "미수금(" .. Money.Format(st.outstanding) .. ")보다 큽니다" end
+        return false, err
+    end, { description = string.format("%s\n본인 지갑의 골드를 공대 금액으로 낸 것으로 거래 로그에 기록하고 낙찰 수금에 연결합니다. (거래 창 없음, 장부 수입에 반영)", aw.itemName or "?") })
 end
 
 function A.CancelAward(aw)

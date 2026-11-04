@@ -52,7 +52,7 @@ end
 
 function J:StatusLabel(tr)
     if tr.voided then return L.TRADE_voided end
-    local base = BRL.Label("TRADE_", tr.status)
+    local base = tr.source == "self" and L.TRADE_self or BRL.Label("TRADE_", tr.status)
     if tr.adjusted then return base .. "·" .. L.TRADE_adjusted end
     return base
 end
@@ -119,6 +119,43 @@ function J:RecordFromTracker(sess, snap, status, verification, extra)
 end
 
 -- 수동 거래 기록 (누락된 거래 추가). fields: partner, given, received, purpose, note, at, items
+-- 공대장 본인 지급 기록 (본인 낙찰 등: 거래 상대 없이 본인 지갑 → 공대 금액)
+-- fields: received(코퍼), purpose, sessionId, note, targetItems
+function J:AddSelf(fields)
+    fields = fields or {}
+    local received = fields.received or 0
+    if not Money.IsValid(received) or received <= 0 then return nil, "금액 오류" end
+    local purpose = fields.purpose or "auction_payment"
+    local session = fields.sessionId and BRL.Session:Get(fields.sessionId)
+    if session then
+        local ok, why = BRL.Perm:CanEditSession(session)
+        if not ok then return nil, why end
+    elseif not BRL.Perm:Require("finance.edit") then
+        return nil, L.LEADER_ONLY
+    end
+    local rec = DB:Insert("trades", {
+        at = U.Now(),
+        partnerKey = BRL.playerKey,
+        partnerName = API.ShortName(BRL.playerKey) .. " (본인)",
+        playerMoney = 0,
+        targetMoney = received,
+        playerItems = {},
+        targetItems = copyItems(fields.targetItems),
+        status = "manual",
+        verification = "self",
+        source = "self",
+        purpose = purpose,
+        sessionId = fields.sessionId or activeSessionIdFor(),
+        note = fields.note or "공대장 본인 지급",
+        history = {},
+    })
+    table.insert(BRL.db.tradeOrder, rec.id)
+    DB:Audit("trade.self.add", "trade", rec.id, { received = received, purpose = purpose, note = rec.note })
+    BRL.Ledger:SyncTrade(rec)
+    fire(rec)
+    return rec
+end
+
 function J:AddManual(fields)
     if not BRL.Perm:Require("trade.own") then return nil, "권한 없음" end
     fields = fields or {}
@@ -490,7 +527,7 @@ function J:ExportCSV(list)
             csv(tr.id), csv(U.FormatDate(tr.at)), csv(U.FormatClock(tr.at)), csv(tr.partnerName), csv(tr.partnerKey),
             csv(eff.received), csv(eff.given), csv(table.concat(recvItems, ";")), csv(table.concat(giveItems, ";")),
             csv(self:StatusLabel(tr)), csv(tr.verification), csv(self:PurposeLabel(tr.purpose)),
-            csv(table.concat(auctionIds, ";")), csv(table.concat(settleIds, ";")), csv(tr.source == "manual" and "수동" or "자동"), csv(tr.note),
+            csv(table.concat(auctionIds, ";")), csv(table.concat(settleIds, ";")), csv(tr.source == "manual" and "수동" or (tr.source == "self" and "본인 지급" or "자동")), csv(tr.note),
         }, ",")
     end
     return table.concat(lines, "\n")

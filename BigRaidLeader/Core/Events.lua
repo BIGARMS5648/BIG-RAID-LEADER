@@ -106,4 +106,5 @@ Events.MSG = {
     COMBAT_CHANGED = "BRL_COMBAT_CHANGED",
     SYNC_RECEIVED = "BRL_SYNC_RECEIVED",
     SETTINGS_CHANGED = "BRL_SETTINGS_CHANGED",
+    SELF_AWARD = "BRL_SELF_AWARD",                -- 공대장 본인 낙찰 (award)
 }

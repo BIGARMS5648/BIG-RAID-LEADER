@@ -104,13 +104,22 @@ local function build(page)
 
     local ctl = CreateFrame("Frame", nil, pa)
     ctl:SetPoint("TOPLEFT", 4, -156)
-    ctl:SetSize(430, 56)
+    ctl:SetSize(430, 84)
     local fc = W.Flow(ctl, 0, 1, 4)
     local function active() return AU:GetActive() end
     local function pending() return AU:GetPendingConfirm((BRL.Session:GetActive() or {}).id)[1] end
     fc:Add(W.Button(ctl, "다음 경매 시작", 104, 24, function() local ok, err = AU:StartNext() if not ok then BRL:Print(tostring(err)) end end, { kind = "primary", perm = "finance.edit" }))
+    pa.countBtn = fc:Add(W.Button(ctl, "카운트 " .. AU:CountSeconds() .. "초", 84, 24, function()
+        local ok, err = AU:StartCount()
+        if not ok then BRL:Print(tostring(err)) end
+    end, { kind = "primary", perm = "finance.edit", tooltip = { "공격대 경보로 \"카운트 5, 4, 3, 2, 1\"을 공지하고 입찰을 마감합니다.", "카운트 중 새 입찰이 들어오면 자동 취소(설정)", "단축키: 키 설정 > 애드온 > 경매 카운트" } }))
+    fc:Add(W.Button(ctl, "카운트 취소", 80, 24, function()
+        local ok, err = AU:CancelCount(nil, "manual")
+        if not ok then BRL:Print(tostring(err)) end
+    end, { kind = "danger", perm = "finance.edit", tooltip = { "카운트를 멈추고 입찰을 계속 받습니다 (\"[카운트 취소] 입찰 계속\" 공지)." } }))
     fc:Add(W.Button(ctl, "+10초", 52, 24, function() local a = active() if a then AU:ExtendTime(a.id, 10) end end, { perm = "finance.edit" }))
     fc:Add(W.Button(ctl, "입찰 마감", 70, 24, function() local a = active() if a then AU:End(a.id, "manual") end end, { perm = "finance.edit" }))
+    fc:NewLine(28)
     fc:Add(W.Button(ctl, "낙찰 확정", 76, 24, function()
         local a = active() or pending()
         if not a then return end
@@ -121,7 +130,6 @@ local function build(page)
         end, { title = "낙찰 확정" })
     end, { kind = "primary", perm = "finance.edit" }))
     fc:Add(W.Button(ctl, "수동 입찰", 70, 24, function() local a = active() or pending() if a then A.ManualBid(a) end end, { perm = "finance.edit" }))
-    fc:NewLine(28)
     fc:Add(W.Button(ctl, "다른 입찰로 낙찰", 110, 24, function()
         local a = active() or pending()
         if not a then return end
@@ -138,6 +146,7 @@ local function build(page)
         local b = pa.bids:GetSelected()
         if b then D.Reason("입찰 철회", function(r) return Bids:Retract(b.id, r) end) end
     end, { perm = "finance.edit" }))
+    fc:NewLine(28)
     fc:Add(W.Button(ctl, "유찰", 50, 24, function() local a = active() or pending() if a then AU:MarkUnsold(a.id) end end, { perm = "finance.edit" }))
     fc:Add(W.Button(ctl, "경매 취소", 70, 24, function()
         local a = active() or pending()
@@ -146,7 +155,7 @@ local function build(page)
     fc:Add(W.Button(ctl, "결과 공지", 70, 24, function() A.SendLines(AU:ResultLines((BRL.Session:GetActive() or {}).id), "경매 결과") end))
 
     local bh = W.Section(pa, "입찰 내역")
-    bh:SetPoint("TOPLEFT", 4, -218)
+    bh:SetPoint("TOPLEFT", 4, -246)
     pa.bids = W.List(pa, {
         columns = {
             { title = "시각", width = 50, render = function(b) return U.FormatClock(b.at) end },
@@ -160,7 +169,7 @@ local function build(page)
         },
         fontSize = 11,
     })
-    pa.bids:SetPoint("TOPLEFT", 4, -240)
+    pa.bids:SetPoint("TOPLEFT", 4, -268)
     pa.bids:SetPoint("BOTTOMLEFT", 4, 4)
     pa.bids:SetWidth(430)
 
@@ -278,6 +287,15 @@ local function build(page)
             D.Reason("연결 해제", function(r) return P:UnlinkAuction(id, r) end)
         end, { description = "연결을 해제해도 거래 기록은 보존됩니다." })
     end, { perm = "finance.edit" }))
+    fw:Add(W.Button(wb, "본인 낙찰금 기록", 110, 24, function()
+        local aw = selAw()
+        if not aw then
+            for _, x in ipairs(AU:AwardsForPlayer(BRL.playerKey, (BRL.Session:GetActive() or {}).id)) do
+                if BRL.Payments:AwardStatus(x).outstanding > 0 then aw = x break end
+            end
+        end
+        if aw then A.PayAwardFromSelf(aw) else D.Message("미수금이 남은 공대장 본인 낙찰이 없습니다.") end
+    end, { perm = "finance.edit", tooltip = { "공대장이 직접 낙찰받은 경우, 본인 지갑에서 낸 낙찰금을 거래 로그에 '본인 지급'으로 기록합니다." } }))
     fw:Add(W.Button(wb, "전달 표시", 70, 24, function() local aw = selAw() if aw then AU:SetDelivered(aw.id, not aw.delivered) end end, { perm = "finance.edit" }))
     fw:Add(W.Button(wb, "금액 수정", 70, 24, function() local aw = selAw() if aw then A.ChangeAwardAmount(aw) end end, { perm = "finance.edit" }))
     fw:Add(W.Button(wb, "낙찰 취소", 70, 24, function() local aw = selAw() if aw then A.CancelAward(aw) end end, { kind = "danger", perm = "finance.edit" }))
@@ -443,8 +461,13 @@ local function tick(page, auc, rem)
     if page.tab ~= "auction" then return end
     local cur = page.panels.auction.cur
     if auc and auc.status == "active" then
-        cur.timer:SetText(string.format("%d초", math.ceil(rem or 0)))
-        T.SetTextColor(cur.timer, (rem or 0) <= 5 and "red" or "yellow")
+        if auc.countEndsClock then
+            cur.timer:SetText(string.format("카운트 %d", math.ceil(rem or 0)))
+            T.SetTextColor(cur.timer, "red")
+        else
+            cur.timer:SetText(string.format("%d초", math.ceil(rem or 0)))
+            T.SetTextColor(cur.timer, (rem or 0) <= AU:CountSeconds() and "red" or "yellow")
+        end
     end
 end
 
@@ -460,13 +483,20 @@ local function refresh(page)
             cur.icon:SetTexture(a.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
             cur.icon:Show()
             cur.item:SetText(itemText(a))
-            cur.state:SetText(BRL.Label("AUC_", a.status) .. (a.endReason == "interrupted" and " (재접속으로 중단됨 - 확인 후 낙찰/유찰)" or "") ..
+            pa.countBtn:SetText("카운트 " .. AU:CountSeconds() .. "초")
+            cur.state:SetText(BRL.Label("AUC_", a.status) .. (a.countEndsClock and " · |cffff5c5c카운트 중|r" or "") .. (a.endReason == "interrupted" and " (재접속으로 중단됨 - 확인 후 낙찰/유찰)" or "") ..
                 (a.buyout and a.buyout > 0 and (" · 즉시 낙찰 " .. Money.Format(a.buyout)) or ""))
             cur.high:SetText(a.highAmount and Money.Format(a.highAmount) or ("시작가 " .. Money.Format(a.startPrice)))
             cur.bidder:SetText(a.highBidder and ("최고 입찰자: " .. API.ShortName(a.highBidder)) or "입찰 없음")
             cur.nextMin:SetText("다음 최소 입찰가: " .. Money.Format(AU:NextMinimum(a)) .. " · 최소 증가 " .. Money.Format(a.minIncrement))
             if a.status == "active" then
-                cur.timer:SetText(string.format("%d초", math.ceil(AU:Remaining(a))))
+                if a.countEndsClock then
+                    cur.timer:SetText(string.format("카운트 %d", math.ceil(AU:Remaining(a))))
+                    T.SetTextColor(cur.timer, "red")
+                else
+                    cur.timer:SetText(string.format("%d초", math.ceil(AU:Remaining(a))))
+                    T.SetTextColor(cur.timer, "yellow")
+                end
             else
                 cur.timer:SetText(T.Color("yellow", "확정 대기"))
             end

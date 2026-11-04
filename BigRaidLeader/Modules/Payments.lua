@@ -363,6 +363,39 @@ function P:AllocatePayout(tradeId, obligationId, amount, opts)
     return alloc
 end
 
+-- 공대장 본인 낙찰: 본인 지갑의 골드를 공대 금액으로 낸 것으로 기록 (거래 로그 "본인 지급" + 수금 연결)
+-- amount 생략 시 남은 미수금 전액. opts: allowOverpay
+function P:PayAwardFromSelf(awardId, amount, opts)
+    opts = opts or {}
+    local aw = DB:Get("awards", awardId)
+    if not aw then return nil, "낙찰 없음" end
+    if aw.winnerKey ~= BRL.playerKey then return nil, "공대장 본인이 낙찰받은 경우에만 본인 지급으로 기록할 수 있습니다" end
+    if aw.status ~= "active" then return nil, "취소된 낙찰입니다" end
+    local ok, why = checkSession(aw.sessionId)
+    if not ok then return nil, why end
+    local st = self:AwardStatus(aw)
+    amount = amount or st.outstanding
+    if not Money.IsValid(amount) or amount <= 0 then return nil, "남은 미수금이 없습니다" end
+    if amount > st.outstanding and not opts.allowOverpay then return nil, "overpay", { outstanding = st.outstanding } end
+    local tr, err = J():AddSelf({
+        received = amount, purpose = "auction_payment", sessionId = aw.sessionId,
+        note = "공대장 본인 낙찰금 - " .. tostring(aw.itemName or "?"),
+        targetItems = {},
+    })
+    if not tr then return nil, err end
+    local alloc, aerr = self:AllocateAuction(tr.id, aw.id, amount, { allowOverpay = opts.allowOverpay, note = "본인 낙찰" })
+    if not alloc then
+        J():Void(tr.id, "본인 지급 연결 실패: " .. tostring(aerr))
+        return nil, aerr
+    end
+    if not aw.delivered then
+        aw.delivered = true
+        aw.deliveredAt = U.Now()
+        DB:Audit("award.delivered", "award", aw.id, { self = true })
+    end
+    return alloc, tr
+end
+
 -- 공대장 본인 몫/수수료: 거래 없이 지급 완료 처리 (장부에 공대장 분배 지출로 기록)
 function P:PaySelf(obligationId)
     local ob = DB:Get("payouts", obligationId)

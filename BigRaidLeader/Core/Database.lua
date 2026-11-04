@@ -46,7 +46,8 @@ DB.ACCOUNT_DEFAULTS = {
         announceChannel = "RAID_WARNING",
         announceBids = true,
         countdownAnnounce = true,
-        countdownFrom = 5,
+        countdownFrom = 5,          -- 카운트 초 (수동 카운트 / 마감 카운트다운)
+        cancelCountOnBid = true,    -- 카운트 중 새 입찰이 들어오면 카운트 취소
         antiSnipeSeconds = 0,       -- 막판 입찰 시 연장(초), 0=사용 안 함
         autoConfirmAward = false,   -- 종료 시 자동 낙찰 확정 (기본: 공대장 확인)
         policyAcknowledged = false,

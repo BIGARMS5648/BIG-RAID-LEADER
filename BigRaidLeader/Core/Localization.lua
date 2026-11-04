@@ -56,6 +56,7 @@ L.TRADE_unverified = "확인 불가"
 L.TRADE_manual = "수동 확인"
 L.TRADE_adjusted = "수동 조정"
 L.TRADE_voided = "기록 취소"
+L.TRADE_self = "본인 지급"
 
 -- 경매 상태
 L.AUC_queued = "대기"

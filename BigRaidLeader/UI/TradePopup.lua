@@ -5,6 +5,15 @@ local T, W, Money, API = BRL.Theme, BRL.Widgets, BRL.Money, BRL.API
 local TP = BRL:NewModule("TradePopup")
 
 function TP:OnEnable()
+    BRL.Events:On(BRL.Events.MSG.SELF_AWARD, self, function(_, award)
+        if API.InCombat() or not award then return end
+        BRL.Dialogs.Confirm(string.format("공대장 본인 낙찰\n%s - %s\n\n본인 지갑에서 공대 금액으로 낸 것으로 거래 로그에 지금 기록할까요?\n(나중에 [낙찰·수금]의 '본인 낙찰금 기록'으로도 할 수 있습니다)",
+            award.itemName or "?", Money.Format(award.amount)), function()
+            local res, err = BRL.Payments:PayAwardFromSelf(award.id)
+            if res then BRL:Print("본인 낙찰금 %s 기록 완료 (거래 로그: 본인 지급)", Money.Format(award.amount))
+            else BRL:Print("본인 낙찰금 기록 실패: %s", tostring(err)) end
+        end, { title = "본인 낙찰금 기록", acceptText = "지금 기록", cancelText = "나중에" })
+    end)
     BRL.Events:On(BRL.Events.MSG.TRADE_RECORDED, self, function(_, tr)
         if tr and tr.source == "auto" and BRL.TradeJournal:IsCounted(tr) and tr.purpose == "unclassified"
             and BRL.acct.trade.completionPopup and not API.InCombat() then

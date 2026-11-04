@@ -189,6 +189,7 @@ function A:Start(id)
     auc.startedAt = U.Now()
     auc.endsClock = U.Clock() + auc.duration
     auc.highBidId, auc.highAmount, auc.highBidder = nil, nil, nil
+    auc.countEndsClock, auc.preCountEnds = nil, nil
     self.lastAnnouncedSecond = nil
     DB:Audit("auction.start", "auction", auc.id)
     local parts = { string.format("[경매 시작] %s", auc.itemLink) }
@@ -229,12 +230,72 @@ function A:Tick()
     local rem = self:Remaining(auc)
     local sec = math.ceil(rem)
     local cfg = BRL.acct.auction
-    if cfg.countdownAnnounce and sec <= (cfg.countdownFrom or 5) and sec > 0 and sec ~= self.lastAnnouncedSecond then
+    if auc.countEndsClock then
+        -- 수동 카운트: 4, 3, 2, 1 (시작 숫자는 StartCount 에서 공지)
+        if sec > 0 and sec ~= self.lastAnnouncedSecond then
+            self.lastAnnouncedSecond = sec
+            BRL.ChatOut:Announce(tostring(sec))
+        end
+    elseif cfg.countdownAnnounce and sec <= self:CountSeconds() and sec > 0 and sec ~= self.lastAnnouncedSecond then
         self.lastAnnouncedSecond = sec
         BRL.ChatOut:Send(string.format("%s %d...", auc.itemLink, sec))
     end
     BRL.Events:Fire(BRL.Events.MSG.AUCTION_TICK, auc, rem)
-    if rem <= 0 then self:End(auc.id, "timer") end
+    if rem <= 0 then self:End(auc.id, auc.countEndsClock and "count" or "timer") end
+end
+
+---------------------------------------------------------------------------
+-- 수동 카운트 ("카운트 5, 4, 3, 2, 1" → 입찰 마감) / 카운트 취소
+---------------------------------------------------------------------------
+function A:CountSeconds()
+    return math.max(3, math.min(10, math.floor(tonumber(BRL.acct.auction.countdownFrom) or 5)))
+end
+
+function A:IsCounting(auc)
+    auc = auc or self:GetActive()
+    return auc ~= nil and auc.status == "active" and auc.countEndsClock ~= nil
+end
+
+function A:StartCount(id)
+    local auc = id and self:Get(id) or self:GetActive()
+    if not auc or auc.status ~= "active" then return false, "진행 중인 경매가 없습니다" end
+    if not requireEdit(auc) then return false, "권한 없음" end
+    if auc.countEndsClock then return false, "이미 카운트 중입니다" end
+    local n = self:CountSeconds()
+    auc.preCountEnds = auc.endsClock
+    auc.countEndsClock = U.Clock() + n
+    auc.endsClock = auc.countEndsClock
+    self.lastAnnouncedSecond = n
+    DB:Audit("auction.count.start", "auction", auc.id, { seconds = n, high = auc.highAmount, bidder = auc.highBidder })
+    local top = auc.highBidder and (API.ShortName(auc.highBidder) .. " " .. Money.Format(auc.highAmount)) or "입찰 없음"
+    BRL.ChatOut:Announce(string.format("[카운트] %s 최고 %s - %d", auc.itemLink, top, n))
+    self:StartTicker()
+    changed()
+    return true
+end
+
+-- reason: "manual"(공대장) | "bid"(카운트 중 새 입찰)
+function A:CancelCount(id, reason)
+    local auc = id and self:Get(id) or self:GetActive()
+    if not auc or auc.status ~= "active" then return false, "진행 중인 경매가 없습니다" end
+    if reason ~= "bid" and not requireEdit(auc) then return false, "권한 없음" end
+    local now = U.Clock()
+    local resume = math.max(10, self:CountSeconds() * 2)
+    if auc.countEndsClock then
+        auc.endsClock = math.max(auc.preCountEnds or 0, now + resume)
+        auc.countEndsClock, auc.preCountEnds = nil, nil
+    elseif self:Remaining(auc) <= self:CountSeconds() then
+        -- 시간 만료 직전 자동 카운트다운도 취소 가능
+        auc.endsClock = now + resume
+    else
+        return false, "진행 중인 카운트가 없습니다"
+    end
+    self.lastAnnouncedSecond = nil
+    DB:Audit("auction.count.cancel", "auction", auc.id, { reason = reason or "manual" })
+    BRL.ChatOut:Announce(reason == "bid" and string.format("[카운트 취소] 새 입찰 %s - 입찰 계속", Money.Format(auc.highAmount or 0))
+        or "[카운트 취소] 입찰 계속")
+    changed()
+    return true
 end
 
 function A:ExtendTime(id, seconds)
@@ -254,6 +315,7 @@ function A:ApplyBid(auc, bid)
     auc.highAmount = bid.amount
     auc.highBidder = bid.bidderKey
     local cfg = BRL.acct.auction
+    if auc.countEndsClock and cfg.cancelCountOnBid ~= false then self:CancelCount(auc.id, "bid") end
     local rem = self:Remaining(auc)
     if cfg.antiSnipeSeconds and cfg.antiSnipeSeconds > 0 and rem < cfg.antiSnipeSeconds then
         auc.endsClock = U.Clock() + cfg.antiSnipeSeconds
@@ -291,6 +353,7 @@ function A:End(id, reason)
     auc.endReason = reason or "manual"
     auc.endedAt = U.Now()
     auc.endsClock = nil
+    auc.countEndsClock, auc.preCountEnds = nil, nil
     DB:Audit("auction.end", "auction", auc.id, { reason = auc.endReason, high = auc.highAmount, bidder = auc.highBidder })
     if not self:GetActive() then self:StopTicker() end
     if not auc.highBidId then
@@ -337,6 +400,10 @@ function A:ConfirmAward(id, bidId)
     if BRL.Sync then BRL.Sync:BroadcastAward(award) end
     changed()
     BRL.Events:Fire(BRL.Events.MSG.LEDGER_CHANGED)
+    if award.winnerKey == BRL.playerKey then
+        BRL:Print("공대장 본인 낙찰: [전리품 경매 > 낙찰·수금]에서 '본인 낙찰금 기록'으로 거래 로그에 남기세요.")
+        BRL.Events:Fire(BRL.Events.MSG.SELF_AWARD, award)
+    end
     return award
 end
 

@@ -40,6 +40,7 @@ local HELP = {
     "/brl <메뉴> - 메뉴 바로 열기 (대시보드, 모집, 공대원, 편성, 역할, 준비, 버프, 지휘, 공략, 경매, 거래, 장부, 정산, 통계, 설정)",
     "/brl 경매 [아이템링크] [시작가] - 경매 등록",
     "/brl 입찰 <이름> <금액> - 진행 중 경매에 수동 입찰",
+    "/brl 카운트 - 경매 카운트(5초) / /brl 카운트취소 - 카운트 취소",
     "/brl 준비 - 준비 확인 / /brl 풀 [초] - 풀링 카운트다운",
     "/brl 전투준비 - 도핑(음식/영약/비약) 점검 / /brl 구성 [20|40] - 구성 분석·추천 직업",
     "/brl 세션 [이름] - 새 공격대 세션",
@@ -75,6 +76,16 @@ function Init:Slash(msg)
     local lower = cmd:lower()
     if lower == "help" or cmd == "도움말" or cmd == "?" then
         for _, l in ipairs(HELP) do BRL:Print(l) end
+        return
+    end
+    if cmd == "카운트" or lower == "count" then
+        local ok, err = BRL.Auctions:StartCount()
+        if not ok then BRL:Print(tostring(err)) end
+        return
+    end
+    if cmd == "카운트취소" or lower == "countcancel" then
+        local ok, err = BRL.Auctions:CancelCount(nil, "manual")
+        if not ok then BRL:Print(tostring(err)) end
         return
     end
     if cmd == "전투준비" or cmd == "도핑" or lower == "prep" then
@@ -168,6 +179,8 @@ _G.BINDING_NAME_BRL_PULL = "풀링 카운트다운"
 _G.BINDING_NAME_BRL_CANCELPULL = "풀링 취소"
 _G.BINDING_NAME_BRL_AUCTION = "경매 화면 열기"
 _G.BINDING_NAME_BRL_COMBATPREP = "전투 준비 (도핑 점검)"
+_G.BINDING_NAME_BRL_AUCTIONCOUNT = "경매 카운트"
+_G.BINDING_NAME_BRL_AUCTIONCOUNTCANCEL = "경매 카운트 취소"
 
 function _G.BigRaidLeader_Binding(action)
     if action == "READY" then
@@ -176,6 +189,12 @@ function _G.BigRaidLeader_Binding(action)
         if BRL.Perm:Require("raid.command") then BRL.Command:Pull(BRL.acct.command.pullSeconds) end
     elseif action == "CANCELPULL" then
         if BRL.Perm:Require("raid.command") then BRL.Command:CancelPull() end
+    elseif action == "COUNT" then
+        local ok, err = BRL.Auctions:StartCount()
+        if not ok then BRL:Print(tostring(err)) end
+    elseif action == "COUNTCANCEL" then
+        local ok, err = BRL.Auctions:CancelCount(nil, "manual")
+        if not ok then BRL:Print(tostring(err)) end
     elseif action == "PREP" then
         BRL.CombatPrep:Run()
     elseif action == "AUCTION" then
