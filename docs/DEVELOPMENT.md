@@ -50,7 +50,7 @@ dist/                       배포 ZIP
 
 | 키 | 구조 (명세 20장 대응) |
 |---|---|
-| `schemaVersion`, `nextId` | 스키마 버전(3), ID 카운터 |
+| `schemaVersion`, `nextId` | 스키마 버전(4), ID 카운터 |
 | `account` | **AccountSettings** (거래/경매/정산/버프/지휘/도핑/보관/HUD 설정) |
 | `characters[이름-서버]` | **CharacterSettings** (창 위치/크기/배율, 이월 잔돈, 개인 메모) |
 | `sessions[id]` | **RaidSession** (이름, 공격대, 인원, 소유자, 참가자 `attendance[key]` = **CurrentRaidMember** 기록) |
@@ -84,6 +84,7 @@ dist/                       배포 ZIP
 
 - 1골드 = 10,000코퍼, 1실버 = 100코퍼. Lua double 은 2^53 까지 정수를 정확히 표현합니다.
 - 비율 분배는 `Money.MulDiv(a, num, den) = floor(a/den)*num + floor((a%den)*num/den)` 로 중간값 오버플로 없이 계산합니다.
+- 정산은 실제 수금(수금 연결된 낙찰금) 기준만 계산합니다 (예상 정산 없음, `Compute` 의 basis 인자는 호환용).
 - 정산 항등식: `총수입 = 장부지출 + 운영비 + 공제 + 수수료 + 예비금 + 분배합계 + 잔돈(보관) + 이월` 을 매 계산마다 검증합니다.
 - 장부 잔액 검증(정산 확정 후): `잔액 = 운영비 + 공제 + 예비금 + 잔돈 + 이월 − 이월사용 + 미지급 − 초과지급 + 미환불 + 미연결수금 − 미연결환불 − 미연결지급 − 수동 공대장분배`
 
@@ -120,10 +121,11 @@ TRADE_CLOSED ─▶ 판정 대기(pending) ──┬─ 취소 신호 ───�
 - 남은 자리 계획 = 추천 1순위를 하나씩 추가하는 탐욕적 반복 (빠른 경로 `Score` 사용, 40인 39자리 ≈ 35ms)
 - 같은 입력(공대원 직업·역할·파티, 설정, 야영지 상태)이면 결과를 캐시합니다.
 
-## 5c. 스키마 v3 마이그레이션 (2.1)
+## 5c. 스키마 마이그레이션 v3 (2.1) / v4 (2.2)
 
 - 2.0 의 `archives`(세션 보관)를 체크섬 검증 후 원래 테이블로 되돌리고 `tradeOrder` 를 시각 순으로 재정렬, 손상된 보관 기록은 `archivesDamaged` 로 보존
 - 폐기된 기능의 저장값 제거: `lootRecords`, `loot`, `raidOps.markerTemplates`, `raidOps.readyManual`, `account.archive`, `account.trade.whisperPartner`, `account.auction.policyAcknowledged`
+- v4: 미수금 기능 폐기 → `account.auction.bidLimitOutstanding`, `sessions[*].dunning` 제거
 - 마이그레이션 전 자동 백업
 
 ## 5d. 풀링 판정 (`CombatPrep:PullCheck`)
