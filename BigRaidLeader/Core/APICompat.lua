@@ -459,6 +459,35 @@ function API.GetTradeSnapshot()
     return snap
 end
 
+-- 가방 아이템 수 (거래 아이템 이동 검증용). 은행 제외. 읽을 수 없으면 nil
+function API.GetItemCount(item)
+    local id = type(item) == "number" and item or U.ItemIdFromLink(item)
+    if not id then return nil end
+    local f = fn("C_Item.GetItemCount") or G.GetItemCount
+    if not f then return nil end
+    local ok, n = safeCall(f, id, false, false)
+    if ok and type(n) == "number" and not API.IsSecret(n) then return n end
+    return nil
+end
+
+-- 거래 창에 내 골드 입력 (보호 함수일 수 있으므로 실패 시 false). 수락은 절대 자동으로 하지 않는다.
+function API.SetTradeMoney(copper)
+    if type(copper) ~= "number" or copper < 0 then return false, "금액 오류" end
+    if API.InCombat() then return false, "전투 중에는 사용할 수 없습니다" end
+    local f = G.SetTradeMoney
+    if not f then return false, "SetTradeMoney 미지원" end
+    local ok = safeCall(f, math.floor(copper))
+    if not ok then return false, "게임이 골드 입력을 허용하지 않았습니다" end
+    return true
+end
+
+-- 거래 창 프레임 (정보 패널 부착용)
+function API.GetTradeFrame()
+    local f = G.TradeFrame
+    if type(f) == "table" and f.IsShown then return f end
+    return nil
+end
+
 -- 거래 상대 (거래 창이 열린 동안 "NPC" 유닛 토큰이 상대를 가리킴)
 function API.GetTradePartner()
     local key = API.UnitKey("NPC")
@@ -654,7 +683,8 @@ API.CHECK_LIST = {
     "C_ChatInfo.SendChatMessage", "SendChatMessage", "C_UnitAuras.GetAuraDataByIndex",
     "C_Item.GetItemInfo", "GetItemInfo", "GetLootSlotLink", "GetInventoryItemDurability",
     "C_Timer.After", "C_Timer.NewTicker", "GetServerTime", "UnitFullName", "GetNormalizedRealmName",
-    "GetChannelList", "RaidNotice_AddMessage",
+    "GetChannelList", "RaidNotice_AddMessage", "C_Item.GetItemCount", "GetItemCount", "SetTradeMoney",
+    "TradeFrame",
 }
 
 function API.RunCompatibilityCheck()

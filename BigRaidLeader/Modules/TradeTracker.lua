@@ -16,6 +16,7 @@ Tracker.pending = nil     -- 창이 닫히고 결과 판정을 기다리는 세�
 Tracker.lastFinalized = nil
 
 local MAX_EVENTS = 40
+local MAX_TRACES = 10
 
 local function logEvent(sess, name, a, b)
     if not sess then return end
@@ -49,6 +50,7 @@ function Tracker:OnEnable()
     E:Register("UI_ERROR_MESSAGE", self, "OnUIMessage")
     E:Register("CHAT_MSG_SYSTEM", self, "OnSystemMessage")
     E:Register("PLAYER_MONEY", self, "OnPlayerMoney")
+    E:Register("BAG_UPDATE_DELAYED", self, "OnBagUpdate")
     self:RecoverInterrupted()
 end
 
@@ -65,8 +67,9 @@ function Tracker:RecoverInterrupted()
     end
     sess.signals = sess.signals or {}
     sess.interrupted = true
-    -- 재시작 직후 GetMoney 기준은 신뢰할 수 없으므로 금액 검증을 하지 않는다
+    -- 재시작 직후 GetMoney/가방 기준은 신뢰할 수 없으므로 금액·아이템 검증을 하지 않는다
     sess.moneyAtOpen = nil
+    sess.itemBase, sess.itemExp = nil, nil
     self:Finalize(sess, "interrupted")
 end
 
@@ -137,6 +140,7 @@ function Tracker:OnTradeAcceptUpdate(_, playerAccepted, targetAccepted)
         end
         sess.everAccepted = true
         if p and t then sess.bothAccepted = true end
+        self:CaptureItemBaseline(sess, sess.acceptSnap)
     else
         sess.acceptSnap = nil
     end
@@ -207,6 +211,66 @@ function Tracker:OnTradeClosed()
     end
 end
 
+-- 가방 변화 (거래 아이템 이동 확인)
+function Tracker:OnBagUpdate()
+    local sess = self.pending
+    if not sess then return end
+    logEvent(sess, "BAG_UPDATE_DELAYED")
+    self:TryFinalize(sess)
+end
+
+---------------------------------------------------------------------------
+-- 아이템 수량 교차 검증
+--  수락 시점의 거래 아이템별 예상 증감(받은 수 - 준 수)과 가방 기준 수량을 기록하고,
+--  거래 후 가방 수량 변화가 예상과 일치하는지 확인한다. 골드가 없는 아이템 거래의
+--  완료 메시지 누락 대비용 보조 신호이며, 수량을 읽을 수 없으면 사용하지 않는다.
+---------------------------------------------------------------------------
+local function itemExpectations(snap)
+    if not snap then return nil end
+    local exp, any, nonZero = {}, false, false
+    for _, side in ipairs({ { snap.targetItems, 1 }, { snap.playerItems, -1 } }) do
+        for _, it in ipairs(side[1] or {}) do
+            local id = U.ItemIdFromLink(it.link)
+            if not id then return nil end
+            exp[id] = (exp[id] or 0) + side[2] * (it.count or 1)
+            any = true
+        end
+    end
+    if not any then return nil end
+    for _, d in pairs(exp) do if d ~= 0 then nonZero = true end end
+    if not nonZero then return nil end -- 같은 아이템을 같은 수만큼 주고받으면 판별 불가
+    return exp
+end
+
+function Tracker:CaptureItemBaseline(sess, snap)
+    local exp = itemExpectations(snap)
+    if not exp then sess.itemExp, sess.itemBase = nil, nil return end
+    local base = {}
+    for id in pairs(exp) do
+        local n = API.GetItemCount(id)
+        if n == nil then sess.itemExp, sess.itemBase = nil, nil return end
+        base[id] = n
+    end
+    sess.itemExp, sess.itemBase = exp, base
+end
+
+-- 반환: "match" | "unchanged" | "mismatch" | nil(판별 불가)
+function Tracker:ItemCheck(sess)
+    if not sess.itemExp or not sess.itemBase then return nil end
+    local allMatch, allZero = true, true
+    for id, want in pairs(sess.itemExp) do
+        local now = API.GetItemCount(id)
+        local base = sess.itemBase[id]
+        if now == nil or base == nil then return nil end
+        local d = now - base
+        if d ~= want then allMatch = false end
+        if d ~= 0 then allZero = false end
+    end
+    if allMatch then return "match" end
+    if allZero then return "unchanged" end
+    return "mismatch"
+end
+
 function Tracker:OnPlayerMoney()
     local sess = self.pending
     if not sess then return end
@@ -240,7 +304,11 @@ function Tracker:TryFinalize(sess)
         local snap = sess.acceptSnap or sess.live
         local exp = expectedDelta(snap)
         local delta = self:MoneyDelta(sess)
-        if exp == 0 or delta == nil or delta == exp or (U.Clock() - (sess.closedClock or 0)) > 1 then
+        local late = (U.Clock() - (sess.closedClock or 0)) > 1
+        local moneyReady = exp == 0 or delta == nil or delta == exp
+        -- 골드가 없는 아이템 거래는 가방 반영(BAG_UPDATE_DELAYED)까지 잠시 기다려 아이템 검증 결과를 남김
+        local itemsReady = exp ~= 0 or not sess.itemExp or self:ItemCheck(sess) == "match"
+        if (moneyReady and itemsReady) or late then
             self:Finalize(sess, "complete_signal")
             return true
         end
@@ -257,6 +325,11 @@ function Tracker:TryFinalize(sess)
                 return true
             end
         end
+    end
+    -- 완료 메시지 없이 아이템 수량 변화가 정확히 일치 (골드 없는 거래)
+    if (expectedDelta(sess.acceptSnap) or 0) == 0 and self:ItemCheck(sess) == "match" then
+        self:Finalize(sess, "items_match")
+        return true
     end
     return false
 end
@@ -284,17 +357,20 @@ function Tracker:Finalize(sess, reason)
         end
     end
     local exp = expectedDelta(chosen) or 0
+    local itemCheck = (reason ~= "interrupted") and self:ItemCheck(sess) or nil
 
     local status, verification
     if reason == "interrupted" then
         status, verification = "unverified", "interrupted"
     elseif s.complete and s.cancel then
         if moneyMatch and exp ~= 0 then status, verification = "completed", "message+money"
+        elseif exp == 0 and itemCheck == "match" then status, verification = "completed", "message+items"
         else status, verification = "unverified", "conflict" end
     elseif s.complete then
         status = "completed"
         if exp ~= 0 and moneyMatch then verification = "message+money"
         elseif exp ~= 0 and delta ~= nil and not moneyMatch then verification = "message_money_mismatch"
+        elseif itemCheck == "match" then verification = "message+items"
         else verification = "message" end
     elseif s.cancel then
         status, verification = "cancelled", "cancel_signal"
@@ -302,23 +378,30 @@ function Tracker:Finalize(sess, reason)
         status, verification = "completed", "money"
     elseif exp ~= 0 and delta == 0 then
         status, verification = "cancelled", "money_unchanged"
+    elseif exp == 0 and itemCheck == "match" then
+        status, verification = "completed", "items"
+    elseif exp == 0 and itemCheck == "unchanged" then
+        status, verification = "cancelled", "items_unchanged"
     else
         status, verification = "unverified", "no_signal"
     end
+    sess.itemCheck = itemCheck
 
     if self.pending == sess then self.pending = nil end
     if self.current == sess then self.current = nil end
     if BRL.db and BRL.db.activeTrade == sess then BRL.db.activeTrade = nil end
 
-    -- 아무것도 오가지 않은 취소 거래는 기록하지 않음
+    -- 아무것도 오가지 않은 취소 거래는 기록하지 않음 (이벤트 추적에는 남김)
     if status == "cancelled" and snapshotEmpty(chosen) then
+        self:AddTrace(sess, chosen, status, verification, reason, nil)
         BRL.Events:Fire(BRL.Events.MSG.TRADE_STATE, nil)
         return nil
     end
 
     local rec = BRL.TradeJournal:RecordFromTracker(sess, chosen, status, verification, {
-        reason = reason, moneyDelta = delta, cancelReason = s.cancelReason,
+        reason = reason, moneyDelta = delta, cancelReason = s.cancelReason, itemCheck = itemCheck,
     })
+    self:AddTrace(sess, chosen, status, verification, reason, rec)
     if rec and status == "unverified" then
         self.lastFinalized = { id = rec.id, clock = U.Clock() }
     else
@@ -326,6 +409,51 @@ function Tracker:Finalize(sess, reason)
     end
     BRL.Events:Fire(BRL.Events.MSG.TRADE_STATE, nil)
     return rec
+end
+
+---------------------------------------------------------------------------
+-- 최근 거래 이벤트 추적 (기록되지 않은 거래 포함, 최근 10건)
+---------------------------------------------------------------------------
+function Tracker:AddTrace(sess, snap, status, verification, reason, rec)
+    if not BRL.db then return end
+    BRL.db.tradeTraces = BRL.db.tradeTraces or {}
+    local list = BRL.db.tradeTraces
+    snap = snap or {}
+    table.insert(list, 1, {
+        id = sess.id, at = U.Now(), partnerKey = sess.partnerKey, status = status, verification = verification,
+        reason = reason, recorded = rec ~= nil, given = snap.playerMoney or 0, received = snap.targetMoney or 0,
+        items = #(snap.playerItems or {}) + #(snap.targetItems or {}), moneyDelta = self:MoneyDelta(sess),
+        itemCheck = sess.itemCheck, events = U.DeepCopy(sess.events or {}), openedClock = sess.openedClock,
+    })
+    while #list > MAX_TRACES do table.remove(list) end
+end
+
+function Tracker:RecentTraces()
+    return (BRL.db and BRL.db.tradeTraces) or {}
+end
+
+-- 이벤트 목록을 사람이 읽을 수 있는 줄로
+local EVENT_LABELS = {
+    TRADE_SHOW = "거래 창 열림", TRADE_CLOSED = "거래 창 닫힘", TRADE_MONEY_CHANGED = "골드 변경",
+    TRADE_PLAYER_ITEM_CHANGED = "내 아이템 변경", TRADE_TARGET_ITEM_CHANGED = "상대 아이템 변경",
+    TRADE_UPDATE = "거래 갱신", TRADE_ACCEPT_UPDATE = "수락 상태", TRADE_REQUEST_CANCEL = "거래 요청 취소",
+    COMPLETE_MSG = "완료 메시지", CANCEL_MSG = "취소 메시지", PLAYER_MONEY = "보유 골드 변화",
+    BAG_UPDATE_DELAYED = "가방 변화", FINALIZE = "판정",
+}
+function Tracker:FormatEvents(events, startClock)
+    local out = {}
+    local t0 = startClock or (events and events[1] and events[1].t) or 0
+    for _, e in ipairs(events or {}) do
+        local extra = ""
+        if e.e == "TRADE_ACCEPT_UPDATE" then
+            extra = string.format(" (나 %s / 상대 %s)", e.a and "수락" or "-", e.b and "수락" or "-")
+        elseif e.a ~= nil then
+            extra = " (" .. tostring(e.a) .. ")"
+        end
+        out[#out + 1] = string.format("+%.2f초  %s%s", (e.t or t0) - t0, EVENT_LABELS[e.e] or e.e, extra)
+    end
+    if #events >= MAX_EVENTS then out[#out + 1] = "(이벤트 " .. MAX_EVENTS .. "개 이후 생략)" end
+    return out
 end
 
 function Tracker:GetCurrent()

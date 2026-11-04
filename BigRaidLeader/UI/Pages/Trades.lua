@@ -65,7 +65,7 @@ local function build(page)
         onDoubleClick = function(tr) A.TradeDetail(tr) end,
         onRightClick = function(tr) page.context(tr) end,
         tooltip = function(tr)
-            local lines = { "상태: " .. J:StatusLabel(tr) .. " (" .. tostring(tr.verification) .. ")", "목적: " .. J:PurposeLabel(tr.purpose) }
+            local lines = { "상태: " .. J:StatusLabel(tr), "검증: " .. J:VerificationLabel(tr.verification), "목적: " .. J:PurposeLabel(tr.purpose) }
             if tr.note then lines[#lines + 1] = "메모: " .. tr.note end
             if tr.adjusted then lines[#lines + 1] = "수동 조정: " .. tostring(tr.adjusted.reason) end
             lines[#lines + 1] = "더블클릭: 상세 · 우클릭: 작업 메뉴"
@@ -119,6 +119,8 @@ local function build(page)
     f:Add(W.Button(f.parent, "개인 거래로", 84, 24, function() local tr = sel() if tr then A.Report(J:SetPurpose(tr.id, "personal", "개인 거래 분류")) end end))
     f:Add(W.Button(f.parent, "수동 기록 추가", 100, 24, function() A.AddManualTrade() end))
     f:Add(W.Button(f.parent, "내보내기(CSV)", 96, 24, function() D.CopyText("거래 로그 CSV", J:ExportCSV(page.lastList)) end))
+    f:Add(W.Button(f.parent, "이벤트 추적", 84, 24, function() A.TradeTraces() end,
+        { tooltip = { "최근 거래 10건의 이벤트 순서/판정 근거를 보여줍니다.", "기록되지 않은 빈 거래도 포함됩니다." } }))
 end
 
 local function refresh(page)

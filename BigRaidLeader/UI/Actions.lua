@@ -206,7 +206,7 @@ function A.TradeDetail(tr)
         "일시: " .. U.FormatDateTime(tr.at) .. (tr.openedAt and (" (창 열림 " .. U.FormatClock(tr.openedAt) .. ")") or ""),
         "상대: " .. tostring(tr.partnerKey) .. (tr.partnerGuid and ("  [" .. tr.partnerGuid .. "]") or ""),
         "받은 골드: " .. Money.Format(eff.received) .. "   지급 골드: " .. Money.Format(eff.given),
-        "상태: " .. J:StatusLabel(tr) .. " (검증: " .. tostring(tr.verification) .. ")",
+        "상태: " .. J:StatusLabel(tr) .. " (검증: " .. J:VerificationLabel(tr.verification) .. ")",
         "목적: " .. J:PurposeLabel(tr.purpose) .. "   세션: " .. tostring(tr.sessionId and (BRL.Session:Get(tr.sessionId) or {}).name or "-"),
         "기록 방식: " .. (tr.source == "manual" and "수동" or (tr.source == "self" and "본인 지급 (공대장 본인 낙찰 등)" or "자동")),
     }
@@ -230,6 +230,11 @@ function A.TradeDetail(tr)
         local ob = BRL.DB:Get("payouts", a.obligationId)
         lines[#lines + 1] = string.format("  지급 %s → %s (%s)%s", Money.Format(a.amount), ob and ob.name or "?", a.id, a.proxy and " [대표 수령]" or "")
     end
+    if tr.eventTrace and #tr.eventTrace > 0 then
+        lines[#lines + 1] = ""
+        lines[#lines + 1] = "[거래 이벤트 추적]" .. (tr.finalizeReason and (" 판정 사유: " .. tostring(tr.finalizeReason)) or "")
+        for _, l in ipairs(BRL.TradeTracker:FormatEvents(tr.eventTrace)) do lines[#lines + 1] = "  " .. l end
+    end
     lines[#lines + 1] = ""
     lines[#lines + 1] = "[수정 이력]"
     for _, h in ipairs(tr.history or {}) do
@@ -237,6 +242,23 @@ function A.TradeDetail(tr)
             type(h.old) == "table" and "(표)" or tostring(h.old), type(h.new) == "table" and "(표)" or tostring(h.new), h.reason and ("- " .. h.reason) or "")
     end
     D.CopyText("거래 상세 - " .. (tr.partnerName or "?"), U.StripColors(table.concat(lines, "\n")))
+end
+
+-- 최근 거래 이벤트 추적 (기록되지 않은 거래 포함)
+function A.TradeTraces()
+    local J = BRL.TradeJournal
+    local lines = { "최근 거래 " .. #BRL.TradeTracker:RecentTraces() .. "건 (최대 10건, 기록되지 않은 빈 거래 포함)", "" }
+    for i, tr in ipairs(BRL.TradeTracker:RecentTraces()) do
+        lines[#lines + 1] = string.format("#%d %s  %s  %s / %s%s", i, U.FormatDateTime(tr.at), tostring(tr.partnerKey or "알 수 없음"),
+            BRL.Label("TRADE_", tr.status), J:VerificationLabel(tr.verification), tr.recorded and "" or "  [기록 안 함]")
+        lines[#lines + 1] = string.format("   받은 %s / 준 %s / 아이템 %d개%s%s", Money.Format(tr.received), Money.Format(tr.given), tr.items or 0,
+            tr.moneyDelta and ("  실제 골드 변화 " .. Money.Format(tr.moneyDelta, { sign = true })) or "",
+            tr.itemCheck and ("  가방 검증 " .. tr.itemCheck) or "")
+        for _, l in ipairs(BRL.TradeTracker:FormatEvents(tr.events, tr.openedClock)) do lines[#lines + 1] = "     " .. l end
+        lines[#lines + 1] = ""
+    end
+    D.CopyText("거래 이벤트 추적", U.StripColors(table.concat(lines, "\n")),
+        { hint = "거래가 잘못 기록되면 이 내용을 복사해 문제 보고에 첨부하세요." })
 end
 
 ---------------------------------------------------------------------------

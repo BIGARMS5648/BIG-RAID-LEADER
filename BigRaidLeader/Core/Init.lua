@@ -44,7 +44,8 @@ local HELP = {
     "/brl 전투준비 - 도핑(음식/영약/비약) 점검 / /brl 구성 [20|40] - 구성 분석·추천 직업",
     "/brl 세션 [이름] - 새 공격대 세션",
     "/brl 백업 - 데이터 백업 / /brl 검사 - 데이터 무결성 검사",
-    "/brl 호환성 - API 지원 여부 확인",
+    "/brl 호환성 - API 지원 여부 확인 / /brl 진단 - 자가 진단 (문제 보고용)",
+    "/brl 추적 - 최근 거래 이벤트 추적 / /brl 보관 - 오래된 종료 세션 보관",
 }
 
 local PAGE_ALIASES = {
@@ -148,6 +149,22 @@ function Init:Slash(msg)
             if not r.ok then BRL:Print(" |cffff5555미지원|r %s", r.name) end
         end
         BRL:Print("미지원 항목만 표시했습니다. 전체 목록: 설정 > 호환성")
+        return
+    end
+    if cmd == "진단" or lower == "diag" then
+        BRL.Diagnostics:Show()
+        return
+    end
+    if cmd == "추적" or lower == "trace" then
+        if BRL.UIActions then BRL.UIActions.TradeTraces() end
+        return
+    end
+    if cmd == "보관" or lower == "archive" then
+        local n = #BRL.Archive:Candidates()
+        if n == 0 then BRL:Print("보관할 세션이 없습니다 (%d일 이상 지난 종료 세션).", BRL.acct.archive.days or 30) return end
+        local done, skipped = BRL.Archive:ArchiveOld()
+        BRL:Print("세션 %d개 보관 완료", done)
+        for _, sk in ipairs(skipped) do BRL:Print(" - 보관 안 함: %s (%s)", tostring(sk.name), tostring(sk.reason)) end
         return
     end
     if lower == "debug" then

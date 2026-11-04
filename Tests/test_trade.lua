@@ -14,12 +14,25 @@ local function addItem(side, slot, id, name, count)
     M.Fire(side == "player" and "TRADE_PLAYER_ITEM_CHANGED" or "TRADE_TARGET_ITEM_CHANGED", slot)
 end
 local function accept(p, t) M.Fire("TRADE_ACCEPT_UPDATE", p, t) end
--- 게임의 완료 처리 흉내: 골드 이동 → 완료 메시지 → 창 비움 → 창 닫힘 → PLAYER_MONEY
+-- 게임의 완료 처리 흉내: 골드/아이템 이동 → 완료 메시지 → 창 비움 → 창 닫힘 → PLAYER_MONEY → 가방 갱신
+local function moveItems(target, player)
+    for _, it in pairs(target) do
+        local id = tonumber(it.link:match("item:(%d+)"))
+        M.bags[id] = (M.bags[id] or 0) + (it.count or 1)
+    end
+    for _, it in pairs(player) do
+        local id = tonumber(it.link:match("item:(%d+)"))
+        M.bags[id] = (M.bags[id] or 0) - (it.count or 1)
+    end
+end
 local function complete(order)
     local delta = M.trade.targetMoney - M.trade.playerMoney
-    order = order or { "money", "msg", "clear", "closed", "pmoney" }
+    local tItems, pItems = M.trade.targetItems, M.trade.playerItems
+    order = order or { "money", "items", "msg", "clear", "closed", "pmoney", "bag" }
     for _, step in ipairs(order) do
         if step == "money" then M.money = M.money + delta
+        elseif step == "items" then moveItems(tItems, pItems)
+        elseif step == "bag" then M.Fire("BAG_UPDATE_DELAYED")
         elseif step == "msg" then M.Fire("UI_INFO_MESSAGE", 226, ERR_TRADE_COMPLETE)
         elseif step == "clear" then
             M.trade.playerItems, M.trade.targetItems = {}, {}
@@ -76,7 +89,7 @@ T.test("3. 아이템만 거래", function()
     complete()
     local tr = last()
     T.eq(tr.status, "completed")
-    T.eq(tr.verification, "message", "아이템 거래는 메시지로 검증")
+    T.eq(tr.verification, "message+items", "아이템 거래는 메시지 + 가방 수량으로 검증")
     T.eq(#tr.playerItems, 1, "지급 아이템 수")
     T.eq(tr.playerItems[1].name, "천둥분노")
 end)
@@ -205,15 +218,59 @@ T.test("12. 완료 메시지 누락 - 골드 변화로 검증 / 아이템만이�
     complete({ "money", "clear", "closed", "pmoney" })
     T.eq(last().status, "completed")
     T.eq(last().verification, "money")
+    -- 아이템만 + 메시지 없음 + 가방 수량 읽기 불가 → 확인 불가
+    M.noItemCount = true
     open("누락아이템")
     addItem("target", 1, 5, "물건")
     accept(1, 0)
-    complete({ "clear", "closed" })
-    T.eq(last().status, "unverified", "아이템만 + 메시지 없음")
+    complete({ "items", "clear", "closed", "bag" })
+    T.eq(last().status, "unverified", "아이템만 + 메시지 없음 + 수량 확인 불가")
     T.no(BRL.TradeJournal:IsCounted(last()), "합산 제외")
     -- 늦게 도착한 완료 메시지로 승격
     M.Fire("UI_INFO_MESSAGE", 0, ERR_TRADE_COMPLETE)
     T.eq(last().status, "completed", "늦은 메시지 승격")
+    M.noItemCount = false
+end)
+
+T.test("12c. 아이템 거래: 가방 수량 변화로 완료 검증 / 변화 없으면 취소 / 메시지+아이템", function()
+    T.fresh()
+    local function lastOf() return BRL.TradeJournal:Get(BRL.TradeTracker:RecentTraces()[1].id) end
+    M.bags[777] = 2
+    open("아이템상대")
+    addItem("target", 1, 777, "전리품", 3)
+    addItem("player", 1, 888, "내물건", 1)
+    M.bags[888] = 1
+    accept(0, 1)
+    -- 완료 메시지 누락, 가방은 실제로 변함
+    complete({ "items", "clear", "closed", "bag" })
+    T.eq(lastOf().status, "completed", "가방 변화 일치 → 완료")
+    T.eq(lastOf().verification, "items")
+    T.eq(M.bags[777], 5)
+    T.eq(M.bags[888], 0)
+    -- 메시지 없이 닫힘 + 가방 변화 없음 → 취소
+    open("도망아이템")
+    addItem("target", 1, 999, "다른템")
+    accept(1, 0)
+    complete({ "clear", "closed", "bag" })
+    T.eq(lastOf().status, "cancelled", "가방 변화 없음 → 취소")
+    T.eq(lastOf().verification, "items_unchanged")
+    -- 완료 메시지 + 가방 갱신이 창 닫힘 뒤에 도착 → 메시지+아이템
+    open("정상아이템")
+    addItem("target", 1, 555, "보석", 2)
+    accept(0, 1)
+    complete({ "msg", "clear", "closed", "items", "bag" })
+    T.eq(lastOf().status, "completed")
+    T.eq(lastOf().verification, "message+items", "가방 반영까지 기다린 뒤 판정")
+    -- 이벤트 추적: 기록 안 된 빈 거래 포함, 최대 10건
+    open("빈거래")
+    cancel()
+    local traces = BRL.TradeTracker:RecentTraces()
+    T.eq(traces[1].partnerKey, "빈거래-아즈샤라")
+    T.no(traces[1].recorded, "빈 취소 거래는 기록 안 함")
+    T.ok(#traces >= 4)
+    T.contains(table.concat(BRL.TradeTracker:FormatEvents(traces[2].events), "\n"), "가방 변화")
+    for i = 1, 12 do open("반복" .. i) cancel() end
+    T.eq(#BRL.TradeTracker:RecentTraces(), 10, "최근 10건만 보관")
 end)
 
 T.test("12b. 골드 제시 후 메시지 없이 닫힘 + 골드 변화 없음 → 취소", function()

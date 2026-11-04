@@ -21,6 +21,9 @@ M.frames = {}
 M.loot = {}
 M.auras = {}
 M.calls = {}
+M.bags = {}         -- [itemID] = 가방 수량 (GetItemCount)
+M.noItemCount = false
+M.tradeMoneySet = nil
 
 M.SECRET = setmetatable({}, { __tostring = function() return "<secret>" end })
 
@@ -243,6 +246,12 @@ _G.GetTradePlayerItemInfo = function(slot) return itemInfo(M.trade.playerItems, 
 _G.GetTradeTargetItemInfo = function(slot) return itemInfo(M.trade.targetItems, slot) end
 _G.GetTradePlayerItemLink = function(slot) local it = M.trade.playerItems[slot] return it and it.link end
 _G.GetTradeTargetItemLink = function(slot) local it = M.trade.targetItems[slot] return it and it.link end
+_G.SetTradeMoney = function(c)
+    if M.protectedTradeMoney then error("ADDON_ACTION_FORBIDDEN") end
+    M.tradeMoneySet = c
+    M.trade.playerMoney = c
+end
+_G.TradeFrame = nil
 
 function M.ItemLink(id, name)
     return "|cffa335ee|Hitem:" .. id .. "::::::::60:::::|h[" .. name .. "]|h|r"
@@ -282,6 +291,10 @@ _G.C_Item = {
         return name, link, 4, 60, 60, "방어구", "판금", 1, "INVTYPE_CHEST", 134400
     end,
     GetItemIconByID = function() return 134400 end,
+    GetItemCount = function(id)
+        if M.noItemCount then return nil end
+        return M.bags[tonumber(id)] or 0
+    end,
     GetItemQualityColor = function() return 0.64, 0.21, 0.93, "ffa335ee" end,
 }
 _G.C_UnitAuras = {

@@ -57,6 +57,7 @@ DB.ACCOUNT_DEFAULTS = {
         remainderMode = "keep",     -- keep(잔돈 보관) | carry(다음 정산 이월) | leader(공대장 지급)
     },
     chat = { reportChannel = "RAID" },
+    archive = { days = 30, auto = false },  -- 세션 보관: N일 지난 종료 세션, 접속 시 자동 보관(기본 끔)
     buffs = { campReplacesClassBuff = true, expireWarnMinutes = 5, required = {} },
     readiness = { minDurability = 50 },
     command = { pullSeconds = 10, breakMinutes = 5 },
@@ -99,6 +100,8 @@ DB.ROOT_DEFAULTS = {
     loot = { dkp = { pools = { default = {} } }, epgp = { standings = {}, baseGP = 100 }, priorities = {} },
     backups = {},
     errorLog = {},
+    archives = {},       -- 보관된 세션 (직렬화 문자열 + 체크섬)
+    tradeTraces = {},    -- 최근 거래 이벤트 추적 (최대 10건)
 }
 
 local function ensureTables(db)

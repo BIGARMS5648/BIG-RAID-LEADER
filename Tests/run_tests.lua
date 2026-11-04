@@ -63,6 +63,10 @@ function T.fresh(opts)
     M.leaderSecret = false
     M.money = 1000000 * 10000
     M.trade = { partner = nil, playerMoney = 0, targetMoney = 0, playerItems = {}, targetItems = {} }
+    M.bags = {}
+    M.noItemCount = false
+    M.protectedTradeMoney = false
+    M.tradeMoneySet = nil
     M.player.rank = 2
     M.SetGroup(opts.group)
     _G.BigRaidLeaderDB = nil

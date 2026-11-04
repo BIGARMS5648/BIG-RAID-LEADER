@@ -79,6 +79,28 @@ end
 ---------------------------------------------------------------------------
 -- 기록 생성
 ---------------------------------------------------------------------------
+-- 완료 검증 방식 표시
+local VERIFICATION_LABELS = {
+    ["message+money"] = "완료 메시지 + 골드 변화 일치",
+    ["message+items"] = "완료 메시지 + 가방 아이템 변화 일치",
+    ["message"] = "완료 메시지",
+    ["message_money_mismatch"] = "완료 메시지 (골드 변화 불일치 - 확인 권장)",
+    ["message_late"] = "늦게 도착한 완료 메시지",
+    ["money"] = "골드 변화 일치 (메시지 누락)",
+    ["items"] = "가방 아이템 변화 일치 (메시지 누락)",
+    ["cancel_signal"] = "취소 신호",
+    ["money_unchanged"] = "골드 변화 없음 → 취소",
+    ["items_unchanged"] = "가방 아이템 변화 없음 → 취소",
+    ["conflict"] = "완료/취소 신호 충돌",
+    ["no_signal"] = "판정 신호 없음",
+    ["interrupted"] = "UI 재시작으로 중단",
+    ["manual"] = "수동 확인",
+    ["self"] = "본인 지급",
+}
+function J:VerificationLabel(v)
+    return VERIFICATION_LABELS[v or ""] or tostring(v or "-")
+end
+
 function J:RecordFromTracker(sess, snap, status, verification, extra)
     snap = snap or {}
     local t = DB:T("trades")
@@ -104,6 +126,7 @@ function J:RecordFromTracker(sess, snap, status, verification, extra)
         finalizeReason = extra and extra.reason or nil,
         cancelReason = extra and type(extra.cancelReason) == "string" and extra.cancelReason or nil,
         eventTrace = sess.events,
+        itemCheck = extra and extra.itemCheck or nil,
         history = {},
     })
     table.insert(BRL.db.tradeOrder, rec.id)
