@@ -45,7 +45,7 @@ function A.LinkTradeToAward(tr)
         local st = P:AwardStatus(aw)
         local default = math.min(avail, st.outstanding)
         D.Input("연결 금액", {
-            { key = "amount", label = "연결 금액", type = "money", default = default, required = true },
+            { key = "amount", type = "money", default = default, required = true },
         }, function(v)
             local res, err = P:AllocateAuction(tr.id, awardId, v.amount)
             if res then return true end
@@ -97,7 +97,7 @@ function A.LinkTradeToPayout(tr)
         local st = P:ObligationStatus(ob)
         local default = math.min(avail, st.remaining)
         D.Input("지급 연결 금액", {
-            { key = "amount", label = "연결 금액", type = "money", default = default, required = true },
+            { key = "amount", type = "money", default = default, required = true },
         }, function(v)
             local opts = {}
             local function try()
@@ -137,7 +137,7 @@ function A.LinkRefund(tr)
     if #items == 0 then D.Message("환불이 필요한 낙찰 취소 건이 없습니다.") return end
     D.Select("경매금 환불 연결", items, function(awardId)
         local st = P:AwardStatus(BRL.Auctions:GetAward(awardId))
-        D.Input("환불 금액", { { key = "amount", label = "환불 금액", type = "money", default = math.min(avail, st.refundDue), required = true } }, function(v)
+        D.Input("환불 금액", { { key = "amount", type = "money", default = math.min(avail, st.refundDue), required = true } }, function(v)
             return P:AllocateRefund(tr.id, awardId, v.amount)
         end)
     end)
@@ -154,8 +154,8 @@ end
 
 function A.ChangePurpose(tr)
     D.Input("거래 목적 변경", {
-        { key = "purpose", label = "거래 목적", type = "dropdown", items = A.PurposeItems(), default = tr.purpose },
-        { key = "reason", label = "변경 사유", type = "text" },
+        { key = "purpose", type = "dropdown", items = A.PurposeItems(), default = tr.purpose },
+        { key = "reason", type = "text" },
     }, function(v)
         return BRL.TradeJournal:SetPurpose(tr.id, v.purpose, v.reason ~= "" and v.reason or nil)
     end, { description = "개인 거래와 분류되지 않은 거래는 공대 장부에 반영되지 않습니다." })
@@ -164,9 +164,9 @@ end
 function A.AdjustTrade(tr)
     local eff = BRL.TradeJournal:Effective(tr)
     D.Input("거래 금액 정정 (수동 조정)", {
-        { key = "received", label = "받은 골드", type = "money", default = eff.received },
-        { key = "given", label = "지급 골드", type = "money", default = eff.given },
-        { key = "reason", label = "정정 사유", type = "text", required = true },
+        { key = "received", type = "money", default = eff.received },
+        { key = "given", type = "money", default = eff.given },
+        { key = "reason", type = "text", required = true },
     }, function(v)
         return BRL.TradeJournal:Adjust(tr.id, v.given, v.received, v.reason)
     end, { description = "원본 기록(받은 " .. Money.Format(tr.targetMoney) .. " / 지급 " .. Money.Format(tr.playerMoney) .. ")은 그대로 보존되고, 정정 금액과 사유가 수정 이력에 남습니다." })
@@ -186,11 +186,11 @@ end
 
 function A.AddManualTrade()
     D.Input("수동 거래 기록 (누락된 거래 추가)", {
-        { key = "partner", label = "거래 상대", type = "text", required = true, placeholder = "캐릭터명 또는 이름-서버" },
-        { key = "received", label = "받은 골드", type = "money" },
-        { key = "given", label = "지급 골드", type = "money" },
-        { key = "purpose", label = "거래 목적", type = "dropdown", items = A.PurposeItems(), default = "unclassified" },
-        { key = "note", label = "기록 사유", type = "text", required = true },
+        { key = "partner", type = "text", required = true, placeholder = "캐릭터명 또는 이름-서버" },
+        { key = "received", type = "money" },
+        { key = "given", type = "money" },
+        { key = "purpose", type = "dropdown", items = A.PurposeItems(), default = "unclassified" },
+        { key = "note", type = "text", required = true },
     }, function(v)
         local rec, err = BRL.TradeJournal:AddManual({ partner = v.partner, received = v.received or 0, given = v.given or 0, purpose = v.purpose, note = v.note })
         if not rec then return false, err end
@@ -244,7 +244,7 @@ function A.TradeDetail(tr)
     D.CopyText("거래 상세 - " .. (tr.partnerName or "?"), U.StripColors(table.concat(lines, "\n")))
 end
 
--- 지휘 명령 목록 (전투 지휘 화면 · HUD 공용). opts: pull(초), breakMin(분), bossKey
+-- 지휘 명령 목록 (공대장 HUD 버튼). opts: pull(초), breakMin(분), bossKey, toggle
 local function briefingBoss(opts)
     local key = opts and opts.bossKey
     if not key or key == "default" then key = BRL.RaidProgress:GetCurrentBoss() end
@@ -255,24 +255,23 @@ local function briefingBoss(opts)
     return key
 end
 A.COMMANDS = {
-    { key = "ready", label = "준비 확인", hud = "준비 확인", primary = true, run = function() BRL.Command:ReadyCheck() end },
-    { key = "pull", label = "풀링 카운트다운", primary = true,
+    { key = "ready", hud = "준비 확인", primary = true, run = function() BRL.Command:ReadyCheck() end },
+    { key = "pull", primary = true,
         hud = function() return "풀링 " .. BRL.acct.command.pullSeconds .. "초" end,
         run = function(opts) A.PullWithCheck((opts and opts.pull) or BRL.acct.command.pullSeconds) end },
-    { key = "cancelpull", label = "풀링 취소", hud = "풀링 취소", primary = true, run = function() BRL.Command:CancelPull() end },
-    { key = "stop", label = "공격 중지", hud = "공격 중지", run = function() BRL.Command:Stop() end },
-    { key = "retreat", label = "후퇴", hud = "후퇴", run = function() BRL.Command:Retreat() end },
-    { key = "regroup", label = "전투 재정비", hud = "재정비", run = function() BRL.Command:Regroup() end },
-    { key = "break", label = "휴식 시작",
+    { key = "cancelpull", hud = "풀링 취소", primary = true, run = function() BRL.Command:CancelPull() end },
+    { key = "stop", hud = "공격 중지", run = function() BRL.Command:Stop() end },
+    { key = "retreat", hud = "후퇴", run = function() BRL.Command:Retreat() end },
+    { key = "regroup", hud = "재정비", run = function() BRL.Command:Regroup() end },
+    { key = "break",
         hud = function() return BRL.Command:BreakRemaining() and "휴식 종료" or ("휴식 " .. BRL.acct.command.breakMinutes .. "분") end,
         run = function(opts)
-            -- HUD 에서는 한 버튼으로 시작/종료 전환
-            if opts and opts.toggle and BRL.Command:BreakRemaining() then return BRL.Command:BreakEnd() end
+            -- 한 버튼으로 시작/종료 전환
+            if BRL.Command:BreakRemaining() then return BRL.Command:BreakEnd() end
             return BRL.Command:BreakStart((opts and opts.breakMin) or BRL.acct.command.breakMinutes)
         end },
-    { key = "breakend", label = "휴식 종료", run = function() BRL.Command:BreakEnd() end },
-    { key = "prep", label = "전투 준비 (도핑 점검)", hud = "전투 준비", perm = false, run = function() BRL.CombatPrep:Run() end },
-    { key = "briefing", label = "보스 공략 안내", hud = "공략 안내", run = function(opts)
+    { key = "prep", hud = "전투 준비", perm = false, run = function() BRL.CombatPrep:Run() end },
+    { key = "briefing", hud = "공략 안내", run = function(opts)
         local key = briefingBoss(opts)
         if not key then BRL:Print("보스를 선택하거나 공략 화면에서 [준비 적용]으로 현재 보스를 지정하세요.") return end
         BRL.Command:BossBriefing(key)
@@ -425,12 +424,12 @@ function A.AddAuction(link)
     local _, _, quality = API.GetItemInfo(link or "")
     local preset = quality and BRL.Data.AuctionPresets[quality] or {}
     D.Input("경매 등록", {
-        { key = "link", label = "아이템", type = "text", default = link or "", required = true, acceptItems = true, placeholder = "Shift+클릭 또는 드래그" },
-        { key = "quantity", label = "수량", type = "number", default = 1 },
-        { key = "startPrice", label = "시작가", type = "money", default = preset.startPrice or cfg.startPrice },
-        { key = "minIncrement", label = "최소 입찰 증가액", type = "money", default = preset.minIncrement or cfg.minIncrement },
-        { key = "buyout", label = "즉시 낙찰가(선택)", type = "money", allowEmpty = true },
-        { key = "duration", label = "경매 시간(초)", type = "number", default = cfg.defaultDuration },
+        { key = "link", type = "text", default = link or "", required = true, acceptItems = true, placeholder = "Shift+클릭 또는 드래그" },
+        { key = "quantity", type = "number", default = 1 },
+        { key = "startPrice", type = "money", default = preset.startPrice or cfg.startPrice },
+        { key = "minIncrement", type = "money", default = preset.minIncrement or cfg.minIncrement },
+        { key = "buyout", type = "money", allowEmpty = true },
+        { key = "duration", type = "number", default = cfg.defaultDuration },
     }, function(v)
         local function add(allowDup)
             return BRL.Auctions:Add(v.link, {
@@ -452,8 +451,8 @@ end
 
 function A.ManualBid(auc)
     D.Input("수동 입찰 입력", {
-        { key = "name", label = "입찰자", type = "text", required = true },
-        { key = "amount", label = "입찰 금액", type = "money", required = true, default = BRL.Auctions:NextMinimum(auc) },
+        { key = "name", type = "text", required = true },
+        { key = "amount", type = "money", required = true, default = BRL.Auctions:NextMinimum(auc) },
     }, function(v)
         local bid, why = BRL.Bids:Place(auc.id, v.name, v.amount, "manual", { allowEnded = true })
         if bid and bid.accepted then return true end
@@ -468,7 +467,7 @@ function A.PayAwardFromSelf(aw)
     local st = P:AwardStatus(aw)
     if st.outstanding <= 0 then D.Message("이미 낙찰금이 모두 기록되었습니다.") return end
     D.Input("본인 낙찰금 기록", {
-        { key = "amount", label = "낙찰금", type = "money", default = st.outstanding, required = true },
+        { key = "amount", type = "money", default = st.outstanding, required = true },
     }, function(v)
         local res, err = P:PayAwardFromSelf(aw.id, v.amount)
         if res then BRL:Print("본인 낙찰금 %s을 거래 로그에 '본인 지급'으로 기록했습니다.", Money.Format(v.amount)) return true end
@@ -487,8 +486,8 @@ end
 
 function A.ChangeAwardAmount(aw)
     D.Input("낙찰 금액 수정", {
-        { key = "amount", label = "낙찰 금액", type = "money", default = aw.amount, required = true },
-        { key = "reason", label = "수정 사유", type = "text", required = true },
+        { key = "amount", type = "money", default = aw.amount, required = true },
+        { key = "reason", type = "text", required = true },
     }, function(v) return BRL.Auctions:ChangeAwardAmount(aw.id, v.amount, v.reason) end)
 end
 

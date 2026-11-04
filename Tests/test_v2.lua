@@ -471,6 +471,32 @@ T.test("2.1 정리: HUD 지휘 명령 / 정책 안내 탭 없음 / 폐기 메뉴
     f.cmdToggle:Click()
     T.ok(f.cmdRows[1]:IsShown(), "지휘 버튼 펼침")
     BRL.HUD:Hide()
+    -- 전투 지휘 화면에는 지휘 명령 버튼이 없음 (HUD 에만)
+    BRL.UI:Open("command")
+    local cmdPanel = BRL.UI.pages.command.frame.panels.cmd
+    local found = {}
+    local function scan(fr)
+        for _, ch in ipairs({ fr:GetChildren() }) do
+            if ch.label and ch.label.GetText then found[ch.label:GetText()] = true end
+            scan(ch)
+        end
+    end
+    scan(cmdPanel)
+    for _, gone in ipairs({ "준비 확인", "풀링 카운트다운", "풀링 취소", "공격 중지", "후퇴", "전투 재정비", "휴식 시작", "휴식 종료", "보스 공략 안내" }) do
+        T.no(found[gone], "전투 지휘 화면에 '" .. gone .. "' 버튼 없음")
+    end
+    T.ok(found["HUD 열기/닫기"], "HUD 열기 버튼")
+    T.ok(found["징표 바 열기/닫기"], "징표 바 버튼")
+    -- 풀링 초/휴식 분 입력은 HUD 버튼에 반영
+    cmdPanel.pullSec:SetText("15")
+    cmdPanel.pullSec.edit:GetScript("OnEditFocusLost")(cmdPanel.pullSec.edit)
+    T.eq(BRL.acct.command.pullSeconds, 15, "풀링 초 저장")
+    BRL.HUD:Show()
+    local pullBtn
+    for _, b in ipairs(BRL.HUD.frame.cmdButtons) do if b.cmd.key == "pull" then pullBtn = b end end
+    T.eq(pullBtn.label:GetText(), "풀링 15초", "HUD 풀링 버튼에 반영")
+    BRL.HUD:Hide()
+    BRL.acct.command.pullSeconds = 10
     -- 설정: 정책 안내 / 세션 보관 탭 없음, 진단 탭 있음
     BRL.UI:Open("settings")
     local panels = BRL.UI.pages.settings.frame.panels

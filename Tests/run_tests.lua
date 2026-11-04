@@ -87,6 +87,7 @@ function T.fresh(opts)
     if BRL.PrepReport.frame then BRL.PrepReport.frame:Hide() end
     BRL.CombatPrep.last = nil
     BRL.CombatPrep.pendingWipe = nil
+    BRL.Command.breakId, BRL.Command.breakUntil = nil, nil
     BRL.Auctions.autoNext = nil
     if BRL.HUD.frame then BRL.HUD.frame:Hide() end
     if BRL.HUD.ticker and BRL.HUD.ticker.Cancel then BRL.HUD.ticker:Cancel() end
