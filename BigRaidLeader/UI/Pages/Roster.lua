@@ -34,7 +34,7 @@ local function build(page)
             { title = "레벨", width = 40, align = "CENTER", render = function(m) return m.level or "-" end },
             { title = "역할", width = 90, render = function(m)
                 local assigned = BRL.Roles:IsRoleAssigned(m.key)
-                return BRL.Label("CR_", m.role or "NONE") .. (assigned and "" or " |cff8f8f99(추정)|r")
+                return BRL.Label("CR_", m.role or "NONE") .. (assigned and "" or " |cff879699(추정)|r")
             end, sort = true, key = "role" },
             { title = "상태", width = 140, render = function(m)
                 local s = {}

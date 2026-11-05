@@ -1,7 +1,6 @@
--- BIG RAID LEADER - 테마 (모던 모노크롬 "블랙 팬서")
--- 검은 로우폴리 표범 로고에 맞춘 무채색 테마: 짙은 검정 면 + 얇은 회색 선 + 흰/은색 글자,
--- 주요 버튼만 흰 바탕에 검은 글자(로고처럼 반전). 색은 상태 표시(성공/경고/오류)에만 쓴다.
--- 미니맵 버튼 테두리만 게임 기본 에셋(MiniMap-TrackingBorder)을 쓴다.
+-- BIG RAID LEADER - 테마 (모던 다크 · 청록 강조)
+-- 짙은 청록빛 회색 면 + 청록 강조색(선택 막대/밑줄/토글/주요 버튼 테두리) + 빛나는 머리 선,
+-- 아이콘 사이드바, 큰 화면 제목, 카드형 구획. 미니맵 버튼 테두리만 게임 기본 에셋을 쓴다.
 local _, BRL = ...
 
 local T = {}
@@ -11,46 +10,54 @@ T.MEDIA = "Interface\\AddOns\\BigRaidLeader\\Media\\"
 
 T.colors = {
     -- 면
-    bg = { 0.047, 0.047, 0.055, 0.97 },     -- 창 바탕
-    panel = { 0.075, 0.075, 0.085, 0.92 },  -- 구획 상자
-    panel2 = { 0.095, 0.095, 0.105, 0.95 }, -- 카드/타일
-    header = { 0.11, 0.11, 0.12, 1 },       -- 목록 머리글
-    sidebar = { 0.06, 0.06, 0.068, 1 },     -- 왼쪽 메뉴
+    bg = { 0.086, 0.114, 0.122, 0.98 },      -- 내용 바탕
+    sidebar = { 0.063, 0.082, 0.09, 1 },     -- 왼쪽 메뉴
+    panel = { 0.098, 0.125, 0.133, 0.96 },   -- 카드/상자
+    panel2 = { 0.11, 0.14, 0.149, 0.97 },    -- 타일/강조 카드
+    header = { 0.13, 0.163, 0.172, 1 },      -- 목록 머리글
+    footer = { 0.058, 0.075, 0.082, 1 },     -- 아래 줄
     -- 선
-    border = { 0.85, 0.85, 0.88, 1 },       -- 강조 선 (흰색에 가까움)
-    borderDim = { 0.2, 0.2, 0.22, 1 },      -- 기본 선
-    line = { 1, 1, 1, 0.07 },               -- 구분선
+    border = { 0.07, 0.79, 0.61, 1 },        -- 강조 선 (청록)
+    borderDim = { 0.17, 0.21, 0.22, 1 },     -- 기본 선
+    borderStrong = { 0.27, 0.32, 0.33, 1 },  -- 버튼/입력 선
+    line = { 1, 1, 1, 0.06 },                -- 구분선
+    -- 강조색
+    accent = { 0.07, 0.79, 0.61 },
+    accentBright = { 0.3, 0.95, 0.77 },
+    accentDim = { 0.04, 0.26, 0.21 },
+    accentText = { 0.7, 1, 0.9 },
     -- 글자
-    gold = { 0.86, 0.86, 0.9 },             -- 강조 글자 (은색) - 이전 버전의 금색 자리
-    goldBright = { 1, 1, 1 },               -- 제목
-    text = { 0.9, 0.9, 0.92 },
-    muted = { 0.56, 0.56, 0.6 },
-    disabled = { 0.36, 0.36, 0.39 },
-    ink = { 0.05, 0.05, 0.06 },             -- 흰 버튼 위 검은 글자
-    red = { 1, 0.38, 0.38 },
-    green = { 0.38, 0.86, 0.5 },
-    yellow = { 1, 0.8, 0.32 },
+    gold = { 0.36, 0.92, 0.74 },             -- 강조 글자 (청록) - 이전 버전 금색 자리
+    goldBright = { 1, 1, 1 },                -- 제목
+    text = { 0.88, 0.91, 0.91 },
+    muted = { 0.53, 0.59, 0.6 },
+    disabled = { 0.33, 0.38, 0.39 },
+    ink = { 0.04, 0.06, 0.06 },
+    red = { 1, 0.42, 0.42 },
+    green = { 0.36, 0.88, 0.58 },
+    yellow = { 1, 0.8, 0.35 },
     blue = { 0.45, 0.72, 1 },
     -- 목록
     row = { 1, 1, 1, 0 },
-    rowAlt = { 1, 1, 1, 0.025 },
-    rowHover = { 1, 1, 1, 0.06 },
-    rowSelected = { 1, 1, 1, 0.12 },
+    rowAlt = { 1, 1, 1, 0.022 },
+    rowHover = { 1, 1, 1, 0.055 },
+    rowSelected = { 0.07, 0.79, 0.61, 0.18 },
     -- 버튼/입력
-    button = { 0.14, 0.14, 0.155, 1 },
-    buttonHover = { 0.2, 0.2, 0.22, 1 },
-    buttonBorder = { 0.27, 0.27, 0.3, 1 },
-    primary = { 0.9, 0.9, 0.92, 1 },        -- 흰 버튼
-    primaryHover = { 1, 1, 1, 1 },
-    danger = { 0.2, 0.075, 0.075, 1 },
-    dangerBorder = { 0.5, 0.17, 0.17, 1 },
-    dangerText = { 1, 0.58, 0.58 },
-    input = { 0.025, 0.025, 0.03, 1 },
-    tooltip = { 0.07, 0.07, 0.08, 0.98 },
+    button = { 0.11, 0.137, 0.145, 1 },
+    buttonHover = { 0.15, 0.185, 0.195, 1 },
+    buttonBorder = { 0.27, 0.32, 0.33, 1 },
+    primary = { 0.06, 0.16, 0.14, 1 },       -- 주요 버튼: 짙은 청록 + 청록 테두리
+    primaryHover = { 0.08, 0.24, 0.2, 1 },
+    danger = { 0.17, 0.08, 0.08, 1 },
+    dangerBorder = { 0.55, 0.2, 0.2, 1 },
+    dangerText = { 1, 0.6, 0.6 },
+    input = { 0.06, 0.078, 0.082, 1 },
+    tooltip = { 0.075, 0.098, 0.105, 0.98 },
+    toggleOff = { 0.2, 0.235, 0.245, 1 },
 }
 
 T.HEX = {
-    gold = "ffdcdce6", red = "ffff6161", green = "ff61db80", yellow = "ffffcc52", muted = "ff8f8f99", blue = "ff73b8ff", white = "ffffffff",
+    gold = "ff5cebbd", red = "ffff6b6b", green = "ff5ce094", yellow = "ffffcc59", muted = "ff879699", blue = "ff73b8ff", white = "ffffffff",
 }
 
 function T.Color(name, text)
@@ -60,22 +67,39 @@ end
 T.WHITE = "Interface\\Buttons\\WHITE8X8"
 
 T.TEX = {
-    logo = T.MEDIA .. "Logo.tga",              -- 은색 로우폴리 표범 (256x64, 투명)
-    headerPoly = T.MEDIA .. "HeaderPoly.tga",  -- 머리 띠 로우폴리 무늬 (512x64)
-    minimapIcon = T.MEDIA .. "MinimapIcon.tga", -- 원형 표범 아이콘 (64x64, 원형 투명)
+    icons = T.MEDIA .. "Icons.tga",            -- 흰 선 아이콘 아틀라스 (256x256, 64px 칸 4x4)
+    headerGlow = T.MEDIA .. "HeaderGlow.tga",  -- 머리 띠 청록 빛 + 꺾인 선 (1024x128)
+    backdrop = T.MEDIA .. "Backdrop.tga",      -- 내용 바탕 결 (512x512)
+    logoBadge = T.MEDIA .. "LogoBadge.tga",    -- 원형 청록 배지 + 표범 (128x128)
+    logo = T.MEDIA .. "Logo.tga",              -- 은색 표범 (256x64, 투명)
+    minimapIcon = T.MEDIA .. "MinimapIcon.tga", -- 원형 표범 아이콘 (64x64)
     -- 게임 기본 에셋 (미니맵 버튼)
     minimapBorder = "Interface\\Minimap\\MiniMap-TrackingBorder",
     minimapHighlight = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight",
 }
 
+-- 아이콘 아틀라스 칸 번호 (왼쪽 위부터 0)
+T.ICON = {
+    dashboard = 0, recruit = 1, roster = 2, groups = 3, roles = 4, ready = 5, command = 6, boss = 7,
+    auction = 8, trades = 9, ledger = 10, settlement = 11, settings = 12, chevron = 13, close = 14, check = 15,
+}
+
+-- texture 에 아틀라스 아이콘 지정
+function T.SetIcon(tex, name, color)
+    local i = T.ICON[name] or 0
+    local col, row = i % 4, math.floor(i / 4)
+    tex:SetTexture(T.TEX.icons)
+    tex:SetTexCoord(col / 4, (col + 1) / 4, row / 4, (row + 1) / 4)
+    local c = color or T.colors.text
+    tex:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+end
+
 -- 배경 스타일 (모두 1px 단색 선. 이름은 화면 코드 호환용)
---  dialog : 대화상자/메인 창   panel: 작은 떠 있는 창(HUD 등)   tooltip: 드롭다운 목록
---  box    : 창 안 구획           small: 버튼/입력칸                flat : 단색
 local FLAT = { bgFile = T.WHITE, edgeFile = T.WHITE, edgeSize = 1, insets = { left = 1, right = 1, top = 1, bottom = 1 } }
 T.STYLES = {
-    dialog = { backdrop = FLAT, bg = T.colors.bg, border = { 0.24, 0.24, 0.27, 1 }, inset = 1 },
-    panel = { backdrop = FLAT, bg = { 0.05, 0.05, 0.058, 0.94 }, border = { 0.26, 0.26, 0.29, 1 }, inset = 1 },
-    tooltip = { backdrop = FLAT, bg = T.colors.tooltip, border = { 0.32, 0.32, 0.36, 1 }, inset = 1 },
+    dialog = { backdrop = FLAT, bg = T.colors.bg, border = { 0.2, 0.25, 0.26, 1 }, inset = 1 },
+    panel = { backdrop = FLAT, bg = { 0.075, 0.098, 0.105, 0.95 }, border = { 0.2, 0.25, 0.26, 1 }, inset = 1 },
+    tooltip = { backdrop = FLAT, bg = T.colors.tooltip, border = { 0.24, 0.29, 0.3, 1 }, inset = 1 },
     box = { backdrop = FLAT, bg = T.colors.panel, border = T.colors.borderDim, inset = 1 },
     small = { backdrop = FLAT, bg = T.colors.button, border = T.colors.buttonBorder, inset = 1 },
     flat = { backdrop = FLAT, bg = T.colors.panel, border = T.colors.borderDim, inset = 1 },
@@ -110,7 +134,7 @@ function T.SetFont(fs, size, flags, bold)
         if not ok and fs.SetFontObject and _G.GameFontNormal then fs:SetFontObject(_G.GameFontNormal) end
     end
     if fs.SetShadowColor then
-        fs:SetShadowColor(0, 0, 0, 0.8)
+        fs:SetShadowColor(0, 0, 0, 0.75)
         fs:SetShadowOffset(1, -1)
     end
 end
@@ -144,6 +168,15 @@ function T.Solid(parent, layer, color)
     t:SetTexture(T.WHITE)
     local c = color or T.colors.line
     t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+    return t
+end
+
+-- 떠 있는 창 위쪽의 얇은 청록 강조선
+function T.TopAccent(frame)
+    local t = T.Solid(frame, "OVERLAY", { T.colors.accent[1], T.colors.accent[2], T.colors.accent[3], 0.9 })
+    t:SetHeight(1)
+    t:SetPoint("TOPLEFT", 1, -1)
+    t:SetPoint("TOPRIGHT", -1, -1)
     return t
 end
 

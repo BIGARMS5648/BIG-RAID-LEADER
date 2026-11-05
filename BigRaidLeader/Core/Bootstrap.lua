@@ -8,7 +8,7 @@ BRL.ADDON_NAME = ADDON_NAME or "BigRaidLeader"
 BRL.TITLE = "BIG RAID LEADER"
 BRL.TITLE_KO = "빅 레이드 리더"
 BRL.SHORT = "BRL"
-BRL.VERSION = "2.4.0"
+BRL.VERSION = "2.5.0"
 
 do
     local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata

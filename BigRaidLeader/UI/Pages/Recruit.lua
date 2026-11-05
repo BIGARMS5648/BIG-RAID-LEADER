@@ -96,7 +96,7 @@ local function buildRecruit(page, host)
     s5:SetPoint("TOPLEFT", 440, -170)
     page.list = W.List(host, {
         columns = {
-            { title = "이름", width = 110, render = function(a) return BRL.Data.ColorName(a.name, a.class) .. (a.inGroup and " |cff8f8f99(공대원)|r" or "") end },
+            { title = "이름", width = 110, render = function(a) return BRL.Data.ColorName(a.name, a.class) .. (a.inGroup and " |cff879699(공대원)|r" or "") end },
             { title = "직업/역할", width = 90, render = function(a) return (a.class and BRL.Data.ClassName(a.class) or "?") .. "/" .. (a.role and BRL.Label("CR_", a.role) or "?") end },
             { title = "상태", width = 60, render = function(a)
                 local labels = { pending = "대기", approved = "승인", rejected = "거절", hold = "보류" }
@@ -270,7 +270,7 @@ local function buildAnalysis(page, host)
     f:Add(W.Button(f.parent, "사용 불가 직업", 100, 24, function()
         local items = {}
         for _, c in ipairs(BRL.Data.ClassOrder) do
-            items[#items + 1] = { value = c, text = (Comp:IsExcluded(c) and "|cffff6161[제외]|r " or "") .. BRL.Data.ColorName(BRL.Data.ClassName(c), c) }
+            items[#items + 1] = { value = c, text = (Comp:IsExcluded(c) and "|cffff6b6b[제외]|r " or "") .. BRL.Data.ColorName(BRL.Data.ClassName(c), c) }
         end
         D.Select("추천에서 제외할 직업 (선택 시 전환)", items, function(c) Comp:SetExcluded(c, not Comp:IsExcluded(c)) end,
             { description = "진영/서버 사정으로 모집할 수 없는 직업을 제외하면 그 직업만 제공하는 시너지는 '직업 제한'으로 표시됩니다." })
@@ -390,7 +390,7 @@ local function build(page)
         for k, p in pairs(page.panels) do if k == key then p:Show() else p:Hide() end end
         UI:RequestRefresh()
     end)
-    page.tabs:SetPoint("TOPLEFT", 120, 0)
+    page.tabs:SetPoint("TOPLEFT", 4, 0)
     for _, key in ipairs({ "recruit", "analysis" }) do
         local host = CreateFrame("Frame", nil, page)
         host:SetPoint("TOPLEFT", 0, -10)

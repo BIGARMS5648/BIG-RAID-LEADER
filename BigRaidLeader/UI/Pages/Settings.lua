@@ -147,7 +147,7 @@ local function build(page)
     check(pa, 8, 220, "최고 입찰 공지", "auction.announceBids")
     check(pa, 8, 244, "마감 카운트다운 공지", "auction.countdownAnnounce")
     check(pa, 8, 268, "종료 시 자동 낙찰 확정 (기본: 공대장 확인)", "auction.autoConfirmAward")
-    check(pa, 220, 108, "카운트 중 새 입찰 시 카운트 취소", "auction.cancelCountOnBid")
+    check(pa, 220, 108, "새 입찰 시 카운트 취소", "auction.cancelCountOnBid", { "카운트 중에 새 입찰이 들어오면 카운트를 멈추고 입찰을 계속 받습니다." })
     local bc = W.Label(pa, "입찰 인식 채널:", 12, "muted")
     bc:SetPoint("TOPLEFT", 8, -300)
     local chans = { { "RAID", "공격대" }, { "RAID_LEADER", "공격대장" }, { "RAID_WARNING", "경보" }, { "PARTY", "파티" }, { "PARTY_LEADER", "파티장" }, { "WHISPER", "귓속말" } }

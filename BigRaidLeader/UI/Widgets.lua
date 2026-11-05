@@ -1,4 +1,4 @@
--- BIG RAID LEADER - UI 위젯 (모던 모노크롬 스타일)
+-- BIG RAID LEADER - UI 위젯 (모던 다크 · 청록 강조)
 -- 버튼/입력/체크/드롭다운/가상 스크롤 목록을 1px 선의 평평한 모양으로 직접 그린다.
 -- Blizzard 템플릿에 의존하지 않아 클라이언트 버전과 무관하게 같은 모양이고, 보안 오염(taint)도 없다.
 local _, BRL = ...
@@ -67,10 +67,10 @@ function W.Paragraph(parent, text, width, size)
     return fs
 end
 
--- 구획 제목: 굵은 흰 글자 + 옅은 구분선. width 를 주면 선 길이를 제한 (두 칸 화면의 왼쪽 칸이 오른쪽 칸을 가로지르지 않게)
+-- 구획 제목: 작은 회색 글자 + 아주 옅은 구분선. width 를 주면 선 길이를 제한 (두 칸 화면의 왼쪽 칸이 오른쪽 칸을 가로지르지 않게)
 function W.Section(parent, text, width)
-    local fs = W.Label(parent, text, 13, "goldBright", nil, true)
-    local line = T.Solid(parent, "ARTWORK", C.line)
+    local fs = W.Label(parent, text, 12, "muted", nil, true)
+    local line = T.Solid(parent, "ARTWORK", { 1, 1, 1, 0.05 })
     line:SetHeight(1)
     line:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -4)
     if width then line:SetWidth(width) else line:SetPoint("RIGHT", parent, "RIGHT", -12, 0) end
@@ -80,22 +80,22 @@ end
 
 ---------------------------------------------------------------------------
 -- 버튼
---  normal  : 짙은 회색 + 얇은 선            primary : 흰 바탕 + 검은 글자 (로고 반전)
+--  normal  : 짙은 회색 + 얇은 선            primary : 짙은 청록 + 청록 테두리 + 민트 글자
 --  danger  : 짙은 빨강 + 붉은 글자           subtle  : 투명 + 선
---  dropdown: 입력칸 모양                     tab     : 글자 + 선택 시 밑줄
---  nav     : 왼쪽 메뉴 (선택 시 왼쪽 흰 막대)
+--  dropdown: 입력칸 모양 + 아래 화살표       tab     : 글자 + 선택 시 청록 밑줄
+--  nav     : 왼쪽 메뉴 (아이콘 + 글자, 선택 시 왼쪽 청록 막대)
 ---------------------------------------------------------------------------
 local NONE = { 0, 0, 0, 0 }
 local KIND = {
-    normal = { bg = C.button, bgHover = C.buttonHover, border = C.buttonBorder, borderHover = { 0.5, 0.5, 0.55, 1 }, text = "text", textHover = "goldBright" },
-    primary = { bg = C.primary, bgHover = C.primaryHover, border = { 1, 1, 1, 1 }, borderHover = { 1, 1, 1, 1 }, text = "ink", textHover = "ink" },
-    danger = { bg = C.danger, bgHover = { 0.3, 0.1, 0.1, 1 }, border = C.dangerBorder, borderHover = { 0.8, 0.28, 0.28, 1 }, text = "dangerText", textHover = "goldBright" },
-    subtle = { bg = NONE, bgHover = { 1, 1, 1, 0.06 }, border = { 0.24, 0.24, 0.27, 1 }, borderHover = { 0.5, 0.5, 0.55, 1 }, text = "gold", textHover = "goldBright" },
-    dropdown = { bg = C.input, bgHover = { 0.06, 0.06, 0.07, 1 }, border = C.buttonBorder, borderHover = { 0.5, 0.5, 0.55, 1 }, text = "text", textHover = "goldBright" },
-    tab = { bg = NONE, bgHover = { 1, 1, 1, 0.04 }, border = NONE, borderHover = NONE, text = "muted", textHover = "text",
-        selBg = { 1, 1, 1, 0.05 }, selText = "goldBright" },
-    nav = { bg = NONE, bgHover = { 1, 1, 1, 0.045 }, border = NONE, borderHover = NONE, text = "muted", textHover = "text",
-        selBg = { 1, 1, 1, 0.085 }, selText = "goldBright" },
+    normal = { bg = C.button, bgHover = C.buttonHover, border = C.buttonBorder, borderHover = { 0.48, 0.55, 0.56, 1 }, text = "text", textHover = "goldBright" },
+    primary = { bg = C.primary, bgHover = C.primaryHover, border = { C.accent[1], C.accent[2], C.accent[3], 1 }, borderHover = { C.accentBright[1], C.accentBright[2], C.accentBright[3], 1 }, text = "accentText", textHover = "goldBright" },
+    danger = { bg = C.danger, bgHover = { 0.26, 0.1, 0.1, 1 }, border = C.dangerBorder, borderHover = { 0.85, 0.3, 0.3, 1 }, text = "dangerText", textHover = "goldBright" },
+    subtle = { bg = NONE, bgHover = { 1, 1, 1, 0.05 }, border = C.borderDim, borderHover = { 0.45, 0.52, 0.53, 1 }, text = "muted", textHover = "goldBright" },
+    dropdown = { bg = C.input, bgHover = { 0.085, 0.105, 0.11, 1 }, border = C.buttonBorder, borderHover = { 0.48, 0.55, 0.56, 1 }, text = "text", textHover = "goldBright" },
+    tab = { bg = NONE, bgHover = { 1, 1, 1, 0.03 }, border = NONE, borderHover = NONE, text = "muted", textHover = "text",
+        selBg = NONE, selText = "goldBright" },
+    nav = { bg = NONE, bgHover = { 1, 1, 1, 0.04 }, border = NONE, borderHover = NONE, text = "text", textHover = "goldBright",
+        selBg = { 0.13, 0.17, 0.18, 1 }, selText = "goldBright" },
 }
 local DISABLED = { bg = { 0.085, 0.085, 0.095, 1 }, border = { 0.15, 0.15, 0.17, 1 } }
 W.BUTTON_KINDS = KIND
@@ -120,6 +120,10 @@ local function paintButton(b)
     if b.accent then
         if b.brlSelected then b.accent:Show() else b.accent:Hide() end
     end
+    if b.icon then
+        local ic = (not enabled) and C.disabled or ((b.brlSelected or b.brlHover) and C.goldBright or C.text)
+        b.icon:SetVertexColor(ic[1], ic[2], ic[3], 1)
+    end
 end
 W.PaintButton = paintButton
 
@@ -137,20 +141,30 @@ function W.Button(parent, text, width, height, onClick, opts)
     b.kind = kind
     b:SetSize(width or 90, height or 22)
     local fs = W.Label(b, text, opts.size or 12, KIND[kind].text, kind == "nav" and "LEFT" or "CENTER", kind == "primary" or kind == "tab")
-    fs:SetPoint("LEFT", kind == "nav" and 14 or 4, 0)
+    local textLeft = kind == "nav" and 14 or 4
+    if opts.icon then
+        local ic = b:CreateTexture(nil, "ARTWORK")
+        T.SetIcon(ic, opts.icon)
+        local isz = opts.iconSize or 20
+        ic:SetSize(isz, isz)
+        ic:SetPoint("LEFT", kind == "nav" and 18 or 6, 0)
+        b.icon = ic
+        textLeft = (kind == "nav" and 18 or 6) + isz + 12
+    end
+    fs:SetPoint("LEFT", textLeft, 0)
     fs:SetPoint("RIGHT", -4, 0)
     b.label = fs
     if kind == "nav" then
-        local bar = T.Solid(b, "OVERLAY", { 1, 1, 1, 0.95 })
+        local bar = T.Solid(b, "OVERLAY", { C.accent[1], C.accent[2], C.accent[3], 1 })
         bar:SetWidth(3)
         bar:SetPoint("TOPLEFT", 0, 0)
         bar:SetPoint("BOTTOMLEFT", 0, 0)
         b.accent = bar
     elseif kind == "tab" then
-        local bar = T.Solid(b, "OVERLAY", { 1, 1, 1, 0.95 })
+        local bar = T.Solid(b, "OVERLAY", { C.accent[1], C.accent[2], C.accent[3], 1 })
         bar:SetHeight(2)
-        bar:SetPoint("BOTTOMLEFT", 4, 0)
-        bar:SetPoint("BOTTOMRIGHT", -4, 0)
+        bar:SetPoint("BOTTOMLEFT", 2, 0)
+        bar:SetPoint("BOTTOMRIGHT", -2, 0)
         b.accent = bar
     end
     if b.accent then b.accent:Hide() end
@@ -192,22 +206,27 @@ function W.RefreshPermissionButtons()
     end
 end
 
--- 창 닫기 버튼: 투명 사각형 + ×, 마우스를 올리면 붉은 바탕
+-- 창 닫기 버튼: 얇은 선 사각형 + X 아이콘, 마우스를 올리면 붉은 바탕
 function W.CloseButton(parent, onClick, size)
     size = size or 24
     local b = cf("Button", parent, "BackdropTemplate")
-    T.ApplyBackdrop(b, NONE, NONE, "small")
+    T.ApplyBackdrop(b, { 0, 0, 0, 0.25 }, C.buttonBorder, "small")
     b:SetSize(size, size)
-    local x = W.Label(b, "×", math.floor(size * 0.72), "muted", "CENTER")
-    x:SetPoint("CENTER", 0, 1)
+    local x = b:CreateTexture(nil, "OVERLAY")
+    T.SetIcon(x, "close", C.text)
+    local isz = math.max(8, math.floor(size * 0.5))
+    x:SetSize(isz, isz)
+    x:SetPoint("CENTER")
     b.glyph = x
     b:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(0.62, 0.14, 0.14, 0.95)
-        T.SetTextColor(self.glyph, "goldBright")
+        self:SetBackdropColor(0.55, 0.13, 0.13, 0.95)
+        self:SetBackdropBorderColor(0.85, 0.3, 0.3, 1)
+        self.glyph:SetVertexColor(1, 1, 1, 1)
     end)
     b:SetScript("OnLeave", function(self)
-        self:SetBackdropColor(0, 0, 0, 0)
-        T.SetTextColor(self.glyph, "muted")
+        self:SetBackdropColor(0, 0, 0, 0.25)
+        self:SetBackdropBorderColor(C.buttonBorder[1], C.buttonBorder[2], C.buttonBorder[3], 1)
+        self.glyph:SetVertexColor(C.text[1], C.text[2], C.text[3], 1)
     end)
     b:SetScript("OnClick", function(self, button)
         if onClick then BRL.SafeCall("닫기", onClick, self, button) else parent:Hide() end
@@ -216,46 +235,63 @@ function W.CloseButton(parent, onClick, size)
     return b
 end
 
--- 체크 상자: 16px 사각형, 체크하면 흰 사각 표시
+-- 체크 상자 → 토글 스위치 (30x16, 켜지면 청록 바탕 + 오른쪽 흰 손잡이)
+local TOGGLE_W, TOGGLE_H = 30, 16
 function W.CheckBox(parent, label, onChange, tooltip)
     local b = cf("Button", parent, "BackdropTemplate")
-    b:SetSize(16, 16)
-    T.ApplyBackdrop(b, C.input, { 0.36, 0.36, 0.4, 1 }, "small")
-    local mark = T.Solid(b, "OVERLAY", { 0.94, 0.94, 0.96, 1 })
-    mark:SetPoint("TOPLEFT", 4, -4)
-    mark:SetPoint("BOTTOMRIGHT", -4, 4)
-    mark:Hide()
-    b.mark = mark
+    b:SetSize(TOGGLE_W, TOGGLE_H)
+    T.ApplyBackdrop(b, C.toggleOff, C.borderStrong, "small")
+    local knob = T.Solid(b, "OVERLAY", { 0.62, 0.66, 0.67, 1 })
+    knob:SetSize(TOGGLE_H - 6, TOGGLE_H - 6)
+    knob:SetPoint("LEFT", 3, 0)
+    b.mark = knob
     b.checked = false
     local fs = W.Label(b, label or "", 12)
-    fs:SetPoint("LEFT", b, "RIGHT", 7, 0)
+    fs:SetPoint("LEFT", b, "RIGHT", 8, 0)
     b.label = fs
     local function hitRect()
         local w = (fs.GetStringWidth and fs:GetStringWidth()) or 0
-        if b.SetHitRectInsets and w > 0 then b:SetHitRectInsets(0, -(w + 8), 0, 0) end
+        if b.SetHitRectInsets and w > 0 then b:SetHitRectInsets(0, -(w + 10), 0, 0) end
     end
     hitRect()
     function b:SetLabel(t) fs:SetText(t or "") hitRect() end
+    local function paint(self)
+        local hover = self.brlHover
+        if self.checked then
+            local a = hover and C.accentBright or C.accent
+            self:SetBackdropColor(a[1] * 0.85, a[2] * 0.85, a[3] * 0.85, 1)
+            self:SetBackdropBorderColor(a[1], a[2], a[3], 1)
+            self.mark:SetVertexColor(1, 1, 1, 1)
+            self.mark:ClearAllPoints()
+            self.mark:SetPoint("RIGHT", -3, 0)
+        else
+            self:SetBackdropColor(C.toggleOff[1], C.toggleOff[2], C.toggleOff[3], 1)
+            local bd = hover and { 0.5, 0.57, 0.58 } or C.borderStrong
+            self:SetBackdropBorderColor(bd[1], bd[2], bd[3], 1)
+            self.mark:SetVertexColor(0.62, 0.66, 0.67, 1)
+            self.mark:ClearAllPoints()
+            self.mark:SetPoint("LEFT", 3, 0)
+        end
+    end
     function b:SetChecked(v)
         self.checked = v and true or false
-        if self.checked then self.mark:Show() else self.mark:Hide() end
-        local c = self.checked and C.border or { 0.36, 0.36, 0.4, 1 }
-        self:SetBackdropBorderColor(c[1], c[2], c[3], 1)
+        paint(self)
     end
     function b:GetChecked() return self.checked end
-    b:SetScript("OnEnter", function(self) if not self.checked then self:SetBackdropBorderColor(0.65, 0.65, 0.7, 1) end end)
-    b:SetScript("OnLeave", function(self) self:SetChecked(self.checked) end)
+    b:SetScript("OnEnter", function(self) self.brlHover = true paint(self) end)
+    b:SetScript("OnLeave", function(self) self.brlHover = false paint(self) end)
     b:SetScript("OnClick", function(self)
         self:SetChecked(not self.checked)
         BRL.API.PlaySound(self.checked and "IG_MAINMENU_OPTION_CHECKBOX_ON" or "IG_MAINMENU_OPTION_CHECKBOX_OFF")
         if onChange then BRL.SafeCall("체크박스", onChange, self.checked, self) end
     end)
     if tooltip then W.SetTooltip(b, label, tooltip) end
+    paint(b)
     return b
 end
 
 -- 입력칸
-local FOCUS = { 0.78, 0.78, 0.84, 1 }
+local FOCUS = { C.accent[1], C.accent[2], C.accent[3], 1 }
 function W.EditBox(parent, width, height, opts)
     opts = opts or {}
     local holder = cf("Frame", parent, "BackdropTemplate")
@@ -435,7 +471,9 @@ function W.Dropdown(parent, width, items, onSelect, opts)
     b.label:SetJustifyH("LEFT")
     b.label:SetPoint("LEFT", 8, 0)
     b.label:SetPoint("RIGHT", -20, 0)
-    local arrow = W.Label(b, "▼", 8, "muted", "CENTER")
+    local arrow = b:CreateTexture(nil, "OVERLAY")
+    T.SetIcon(arrow, "chevron", C.muted)
+    arrow:SetSize(12, 12)
     arrow:SetPoint("RIGHT", -7, 0)
     b.arrow = arrow
     b.items = items
@@ -472,7 +510,7 @@ function W.Dropdown(parent, width, items, onSelect, opts)
             btn:SetPoint("RIGHT", -POPUP_PAD, 0)
             local hl = T.Solid(btn, "HIGHLIGHT", C.rowHover)
             hl:SetAllPoints()
-            btn.cur = T.Solid(btn, "ARTWORK", { 1, 1, 1, 0.9 })
+            btn.cur = T.Solid(btn, "ARTWORK", { C.accent[1], C.accent[2], C.accent[3], 1 })
             btn.cur:SetWidth(2)
             btn.cur:SetPoint("TOPLEFT", 0, -3)
             btn.cur:SetPoint("BOTTOMLEFT", 0, 3)
@@ -542,7 +580,7 @@ function W.List(parent, opts)
     -- 얇은 손잡이
     local thumb = scroll:CreateTexture(nil, "OVERLAY")
     thumb:SetTexture(T.WHITE)
-    thumb:SetVertexColor(0.55, 0.55, 0.6, 0.9)
+    thumb:SetVertexColor(0.38, 0.45, 0.46, 0.95)
     thumb:SetSize(4, 28)
     scroll:SetThumbTexture(thumb)
     scroll:SetMinMaxValues(0, 0)
@@ -746,6 +784,12 @@ function W.Tabs(parent, tabs, onSelect)
     -- 폭을 정해 두어야 TOPRIGHT 등 오른쪽 기준 배치에서 버튼이 창 밖으로 나가지 않음
     holder.totalWidth = math.max(1, x - 4)
     holder:SetWidth(holder.totalWidth)
+    -- 탭 아래 옅은 기준선 (선택 탭의 청록 밑줄이 이 선 위에 놓임)
+    local base = T.Solid(holder, "BACKGROUND", { 1, 1, 1, 0.07 })
+    base:SetHeight(1)
+    base:SetPoint("BOTTOMLEFT", 0, 0)
+    base:SetPoint("BOTTOMRIGHT", 0, 0)
+    holder.baseLine = base
     function holder:Select(key)
         self.current = key
         for _, b in ipairs(self.buttons) do W.SetSelected(b, b.key == key) end

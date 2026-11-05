@@ -18,6 +18,7 @@ function MB:Create()
     end
     local f = CreateFrame("Frame", "BigRaidLeaderMarkerBar", UIParent, "BackdropTemplate")
     T.ApplyBackdrop(f, nil, nil, "panel")
+    T.TopAccent(f)
     f:SetSize(8 * 30 + 3 * 34 + 24, 68)
     f:SetPoint("TOP", 0, -160)
     f:SetMovable(true)

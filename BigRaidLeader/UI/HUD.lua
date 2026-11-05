@@ -98,6 +98,7 @@ local BW, BH, GAP = 70, 20, 2
 function HUD:Create()
     if self.frame then return self.frame end
     local f = W.Panel(UIParent, nil, nil, "panel")
+    T.TopAccent(f)
     _G.BigRaidLeaderHUD = f
     f:SetSize(BW * 4 + GAP * 3 + 12, 120)
     f:SetFrameStrata("MEDIUM")
@@ -115,9 +116,9 @@ function HUD:Create()
     if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4]) else f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -240, -220) end
     f:Hide()
     local logo = f:CreateTexture(nil, "ARTWORK")
-    logo:SetTexture(T.TEX.logo)
-    logo:SetSize(44, 11)
-    logo:SetPoint("TOPLEFT", 7, -8)
+    logo:SetTexture(T.TEX.logoBadge)
+    logo:SetSize(15, 15)
+    logo:SetPoint("TOPLEFT", 7, -6)
     f.title = W.Label(f, "BIG RAID LEADER", 11, "goldBright", nil, true)
     f.title:SetPoint("LEFT", logo, "RIGHT", 5, 0)
     local close = W.CloseButton(f, function() self:Hide() end, 20)

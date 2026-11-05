@@ -10,6 +10,7 @@ local function check(v) return v and T.Color("green", "O") or T.Color("red", "X"
 function PR:Create()
     if self.frame then return self.frame end
     local f = W.Panel(UIParent, nil, nil, "dialog")
+    T.TopAccent(f)
     _G.BigRaidLeaderPrepReport = f
     table.insert(UISpecialFrames, "BigRaidLeaderPrepReport")
     f:SetSize(600, 500)

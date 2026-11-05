@@ -4,7 +4,7 @@
 ## Notes: Raid leader suite for WoW: Forever - gold auction, trade log, ledger, settlement, raid ops
 ## Notes-koKR: 포에버 공격대장 통합 애드온 - 골드 경매, 거래 자동 기록, 골드 장부, 정산, 공격대 운영
 ## Author: bigarms5648
-## Version: 2.4.0
+## Version: 2.5.0
 ## SavedVariables: BigRaidLeaderDB
 ## IconTexture: Interface\AddOns\BigRaidLeader\Media\MinimapIcon
 ## AddonCompartmentFunc: BigRaidLeader_OnAddonCompartmentClick

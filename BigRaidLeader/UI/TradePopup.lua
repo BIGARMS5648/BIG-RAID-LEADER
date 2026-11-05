@@ -29,6 +29,7 @@ end
 function TP:Create()
     if self.frame then return self.frame end
     local f = W.Panel(UIParent, nil, nil, "dialog")
+    T.TopAccent(f)
     _G.BigRaidLeaderTradePopup = f
     f:SetSize(450, 206)
     f:SetPoint("TOP", 0, -200)

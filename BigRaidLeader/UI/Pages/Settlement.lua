@@ -26,7 +26,7 @@ function A.LinkObligationToTrade(ob)
         if BRL.TradeJournal:IsCounted(tr) and (tr.purpose == "payout" or tr.purpose == "unclassified") then
             local avail = P:TradeAvailableOut(tr)
             if avail > 0 then
-                items[#items + 1] = { value = tr.id, text = (tr.partnerKey == ob.memberKey and "|cff61db80★|r " or "|cff8f8f99(대표)|r ") .. (tr.partnerName or "?") .. " " .. U.FormatDateTime(tr.at), sub = "미연결 " .. Money.Format(avail) }
+                items[#items + 1] = { value = tr.id, text = (tr.partnerKey == ob.memberKey and "|cff5ce094★|r " or "|cff879699(대표)|r ") .. (tr.partnerName or "?") .. " " .. U.FormatDateTime(tr.at), sub = "미연결 " .. Money.Format(avail) }
             end
         end
     end
@@ -143,7 +143,7 @@ local function build(page)
         columns = {
             { title = "파티", width = 34, align = "CENTER", render = function(r) return r.subgroup or "-" end },
             { title = "공대원", width = 104, render = function(r)
-                return (r.include == false and "|cff8f8f99(제외)|r " or "") .. BRL.Data.ColorName(r.name, r.class) .. (r.kind == "fee" and " |cffffffff(수수료)|r" or "")
+                return (r.include == false and "|cff879699(제외)|r " or "") .. BRL.Data.ColorName(r.name, r.class) .. (r.kind == "fee" and " |cffffffff(수수료)|r" or "")
             end },
             { title = "역할", width = 46, render = function(r) return ({ TANK = "탱커", HEALER = "힐러", MELEE = "근딜", RANGED = "원딜" })[r.role or ""] or "-" end },
             { title = "분배액", width = 100, align = "RIGHT", render = function(r) return r.total and Money.Format(r.total, { goldOnly = r.total % 10000 == 0 }) or "-" end },

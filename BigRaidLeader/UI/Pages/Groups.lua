@@ -12,7 +12,7 @@ local function slotText(key)
     local role = BRL.Roles:GetMemberRole(key, m)
     local roleTag = role and ({ TANK = "탱", HEALER = "힐", MELEE = "근", RANGED = "원" })[role] or "?"
     local pin = G:IsPinned(key) and "|cffffffff*|r" or ""
-    local offline = m and not m.online and " |cff8f8f99(off)|r" or (not m and " |cff8f8f99(부재)|r" or "")
+    local offline = m and not m.online and " |cff879699(off)|r" or (not m and " |cff879699(부재)|r" or "")
     return pin .. "[" .. roleTag .. "] " .. BRL.Data.ColorName(API.ShortName(key), class) .. offline
 end
 

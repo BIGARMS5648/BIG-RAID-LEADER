@@ -144,10 +144,10 @@ local function readTGA(gamePath)
 end
 local function pow2(n) return n > 0 and math.floor(math.log(n) / math.log(2) + 0.5) == math.log(n) / math.log(2) end
 
-T.test("미디어: 표범 아이콘/로고/머리 무늬 TGA 형식", function()
+T.test("미디어: 표범 아이콘/로고/아이콘 아틀라스/머리 빛/바탕 TGA 형식", function()
     local BRL = T.fresh()
     local TX = BRL.Theme.TEX
-    for _, key in ipairs({ "minimapIcon", "logo", "headerPoly" }) do
+    for _, key in ipairs({ "minimapIcon", "logo", "icons", "headerGlow", "backdrop", "logoBadge" }) do
         local t, rel = readTGA(TX[key])
         T.ok(t, "파일 있음: " .. tostring(rel))
         T.eq(t.type, 2, key .. " 무압축 트루컬러")

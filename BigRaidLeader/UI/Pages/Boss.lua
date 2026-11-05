@@ -28,9 +28,9 @@ local function build(page)
         columns = {
             { title = "보스", width = 0, render = function(b)
                 local prog = P:Boss(b.key)
-                local mark = prog.kills > 0 and "|cff61db80✔|r " or ""
+                local mark = prog.kills > 0 and "|cff5ce094✔|r " or ""
                 local cur = P:GetCurrentBoss() == b.key and "|cffffffff▶|r " or ""
-                return cur .. mark .. b.name .. (b.verified == false and " |cff8f8f99?|r" or "")
+                return cur .. mark .. b.name .. (b.verified == false and " |cff879699?|r" or "")
             end },
             { title = "시도", width = 34, align = "CENTER", render = function(b) local p = P:Boss(b.key) return p.attempts > 0 and p.attempts or "" end },
         },
@@ -356,7 +356,7 @@ local function refresh(page)
     if not page.bossKey and bosses[1] then page.bossKey = P:GetCurrentBoss() or bosses[1].key end
     page.bossList:SetData(bosses, true)
     local plan = page.bossKey and BP:Get(page.bossKey)
-    page.bossTitle:SetText(plan and (plan.name .. (plan.verified == false and "  |cff8f8f99(미확인)|r" or "")) or "보스를 선택하세요")
+    page.bossTitle:SetText(plan and (plan.name .. (plan.verified == false and "  |cff879699(미확인)|r" or "")) or "보스를 선택하세요")
     if not plan then return end
     if page.tab == "plan" then
         page.panels.plan.text:SetText(planText(plan))

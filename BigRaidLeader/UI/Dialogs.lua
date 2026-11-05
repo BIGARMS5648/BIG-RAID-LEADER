@@ -7,6 +7,7 @@ BRL.Dialogs = D
 
 local function makeFrame(name, width, height)
     local f = W.Panel(UIParent, nil, nil, "dialog")
+    T.TopAccent(f)
     f:SetSize(width, height)
     f:SetPoint("CENTER", 0, 80)
     f:SetFrameStrata("DIALOG")
