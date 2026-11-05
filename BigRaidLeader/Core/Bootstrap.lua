@@ -8,7 +8,7 @@ BRL.ADDON_NAME = ADDON_NAME or "BigRaidLeader"
 BRL.TITLE = "BIG RAID LEADER"
 BRL.TITLE_KO = "빅 레이드 리더"
 BRL.SHORT = "BRL"
-BRL.VERSION = "2.2.0"
+BRL.VERSION = "2.3.0"
 
 do
     local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
@@ -473,7 +473,7 @@ end
 ---------------------------------------------------------------------------
 -- 로깅 / 오류 처리
 ---------------------------------------------------------------------------
-local GOLD = "|cffd4af37"
+local GOLD = "|cffffd100"
 
 function BRL:Print(msg, ...)
     if select("#", ...) > 0 then msg = strformat(msg, ...) end

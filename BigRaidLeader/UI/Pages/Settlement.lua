@@ -26,7 +26,7 @@ function A.LinkObligationToTrade(ob)
         if BRL.TradeJournal:IsCounted(tr) and (tr.purpose == "payout" or tr.purpose == "unclassified") then
             local avail = P:TradeAvailableOut(tr)
             if avail > 0 then
-                items[#items + 1] = { value = tr.id, text = (tr.partnerKey == ob.memberKey and "|cff5cf272★|r " or "|cff9e9a8f(대표)|r ") .. (tr.partnerName or "?") .. " " .. U.FormatDateTime(tr.at), sub = "미연결 " .. Money.Format(avail) }
+                items[#items + 1] = { value = tr.id, text = (tr.partnerKey == ob.memberKey and "|cff20ff20★|r " or "|cff9d9d9d(대표)|r ") .. (tr.partnerName or "?") .. " " .. U.FormatDateTime(tr.at), sub = "미연결 " .. Money.Format(avail) }
             end
         end
     end
@@ -143,7 +143,7 @@ local function build(page)
         columns = {
             { title = "파티", width = 34, align = "CENTER", render = function(r) return r.subgroup or "-" end },
             { title = "공대원", width = 104, render = function(r)
-                return (r.include == false and "|cff9e9a8f(제외)|r " or "") .. BRL.Data.ColorName(r.name, r.class) .. (r.kind == "fee" and " |cffffd100(수수료)|r" or "")
+                return (r.include == false and "|cff9d9d9d(제외)|r " or "") .. BRL.Data.ColorName(r.name, r.class) .. (r.kind == "fee" and " |cffffd100(수수료)|r" or "")
             end },
             { title = "역할", width = 46, render = function(r) return ({ TANK = "탱커", HEALER = "힐러", MELEE = "근딜", RANGED = "원딜" })[r.role or ""] or "-" end },
             { title = "분배액", width = 100, align = "RIGHT", render = function(r) return r.total and Money.Format(r.total, { goldOnly = r.total % 10000 == 0 }) or "-" end },
@@ -164,14 +164,12 @@ local function build(page)
         onDoubleClick = function(r) page.editParticipant(r) end,
         tooltip = function(r) return r.name, { "더블클릭: 참가자 설정(제외/가중치/보너스/수동 금액)", r.ob and "지급 연결 수: " .. #P:AllocationsForObligation(r.ob.id) or nil } end,
     })
+    -- 오른쪽 아래: 버튼 줄 → 계산 요약 → 파티별 → 경고 (위에서 아래로 이어 붙여 줄 수가 늘어도 겹치지 않게)
     page.list:SetPoint("TOPLEFT", 282, -52)
-    page.list:SetPoint("BOTTOMRIGHT", -4, 178)
+    page.list:SetPoint("BOTTOMRIGHT", -4, 226)
     page.summary = W.Paragraph(page, "", 600, 12)
-    page.summary:SetPoint("BOTTOMLEFT", 282, 104)
     page.parties = W.Paragraph(page, "", 600, 11)
-    page.parties:SetPoint("BOTTOMLEFT", 282, 74)
-    page.warn = W.Paragraph(page, "", 870, 11)
-    page.warn:SetPoint("BOTTOMLEFT", 4, 36)
+    page.warn = W.Paragraph(page, "", 600, 11)
 
     page.editParticipant = function(r)
         local stt = page.st
@@ -199,8 +197,11 @@ local function build(page)
 
     local function sel() return page.list:GetSelected() end
     local bar1 = CreateFrame("Frame", nil, page)
-    bar1:SetPoint("BOTTOMLEFT", 282, 146)
+    bar1:SetPoint("BOTTOMLEFT", 282, 194)
     bar1:SetSize(600, 26)
+    page.summary:SetPoint("TOPLEFT", bar1, "BOTTOMLEFT", 0, -6)
+    page.parties:SetPoint("TOPLEFT", page.summary, "BOTTOMLEFT", 0, -5)
+    page.warn:SetPoint("TOPLEFT", page.parties, "BOTTOMLEFT", 0, -5)
     local f1 = W.Flow(bar1, 0, 1, 4)
     f1:Add(W.Button(bar1, "정산 만들기", 84, 24, function()
         local s = BRL.Session:GetActive()

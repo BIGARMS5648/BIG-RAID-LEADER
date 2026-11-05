@@ -354,9 +354,32 @@ function frameMethods:Hide() self.__shown = false if self.__scripts.OnHide then 
 function frameMethods:IsShown() return self.__shown end
 function frameMethods:IsVisible() return self.__shown end
 function frameMethods:SetShown(v) if v then self:Show() else self:Hide() end end
-function frameMethods:SetWidth(w) self.__width = w end
-function frameMethods:SetHeight(h) self.__height = h end
-function frameMethods:SetSize(w, h) self.__width = w self.__height = h end
+function frameMethods:SetWidth(w) self.__width = w self.__explicitW = true end
+function frameMethods:SetHeight(h) self.__height = h self.__explicitH = true end
+function frameMethods:SetSize(w, h) self.__width = w self.__height = h self.__explicitW = true self.__explicitH = true end
+-- 레이아웃 기록 (UI 겹침 검사용)
+function frameMethods:SetPoint(point, a, b, c, d)
+    local rel, relPoint, x, y
+    if type(a) == "number" or a == nil then
+        rel, relPoint, x, y = nil, point, a or 0, b or 0
+    elseif type(a) == "string" then
+        rel, relPoint, x, y = a, b or point, c or 0, d or 0
+    else
+        rel = a
+        if type(b) == "string" then relPoint, x, y = b, c or 0, d or 0
+        else relPoint, x, y = point, b or 0, c or 0 end
+    end
+    for i = #self.__points, 1, -1 do if self.__points[i].point == point then table.remove(self.__points, i) end end
+    table.insert(self.__points, { point = point, rel = rel, relPoint = relPoint, x = x, y = y })
+end
+function frameMethods:ClearAllPoints() self.__points = {} end
+function frameMethods:SetAllPoints(rel)
+    self.__points = { { point = "TOPLEFT", rel = rel, relPoint = "TOPLEFT", x = 0, y = 0 }, { point = "BOTTOMRIGHT", rel = rel, relPoint = "BOTTOMRIGHT", x = 0, y = 0 } }
+end
+function frameMethods:SetFont(_, size) self.__fontSize = size end
+function frameMethods:SetFontObject(o) self.__fontObject = o end
+function frameMethods:SetJustifyH(j) self.__justifyH = j end
+function frameMethods:SetWordWrap(v) self.__wordWrap = v end
 function frameMethods:GetWidth() return self.__width end
 function frameMethods:GetHeight() return self.__height end
 function frameMethods:GetSize() return self.__width, self.__height end
@@ -372,10 +395,30 @@ function frameMethods:GetNumPoints() return 1 end
 function frameMethods:SetText(t) self.__text = t == nil and "" or tostring(t) end
 function frameMethods:GetText() return self.__text end
 function frameMethods:SetFormattedText(fmt, ...) self.__text = string.format(fmt, ...) end
-function frameMethods:GetStringWidth() return #self.__text * 6 end
-function frameMethods:GetUnboundedStringWidth() return #self.__text * 6 end
-function frameMethods:GetStringHeight() return 12 end
-function frameMethods:GetTextWidth() return #self.__text * 6 end
+-- 글자 크기 측정: 레이아웃 검사기(Tests/layout.lua)와 같은 근사식을 써서 화면 코드의 높이 계산과 검사 결과가 일치하게 한다
+local measure
+local function layoutLib()
+    if not measure then measure = dofile("Tests/layout.lua") end
+    return measure
+end
+function frameMethods:GetStringWidth() return layoutLib().TextWidth(self.__text, self.__fontSize or 12) end
+function frameMethods:GetUnboundedStringWidth() return self:GetStringWidth() end
+function frameMethods:GetStringHeight()
+    local L = layoutLib()
+    local size = self.__fontSize or 12
+    local text = (self.__text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    if self.__explicitW and self.__wordWrap then
+        local lines = 0
+        for line in (text .. "\n"):gmatch("(.-)\n") do
+            lines = lines + math.max(1, math.ceil(L.TextWidth(line, size) / math.max(1, self.__width)))
+        end
+        return lines * (size + 3)
+    end
+    local n = 1
+    for _ in text:gmatch("\n") do n = n + 1 end
+    return n * (size + 4)
+end
+function frameMethods:GetTextWidth() return self:GetStringWidth() end
 function frameMethods:GetNumber() return tonumber(self.__text) or 0 end
 function frameMethods:SetNumber(n) self.__text = tostring(n) end
 function frameMethods:SetChecked(v) self.__checked = v and true or false end

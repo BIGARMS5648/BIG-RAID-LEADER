@@ -93,11 +93,11 @@ HUD.COMMAND_ROWS = {
     { "prep", "break" },
 }
 
-local BW, BH, GAP = 64, 20, 2
+local BW, BH, GAP = 70, 20, 2
 
 function HUD:Create()
     if self.frame then return self.frame end
-    local f = W.Panel(UIParent, T.colors.bg, T.colors.border)
+    local f = W.Panel(UIParent, nil, nil, "panel")
     _G.BigRaidLeaderHUD = f
     f:SetSize(BW * 4 + GAP * 3 + 12, 120)
     f:SetFrameStrata("MEDIUM")
@@ -115,16 +115,16 @@ function HUD:Create()
     if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4]) else f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -240, -220) end
     f:Hide()
     f.title = W.Label(f, "BIG RAID LEADER", 11, "gold")
-    f.title:SetPoint("TOPLEFT", 8, -6)
-    local close = W.Button(f, "X", 18, 16, function() self:Hide() end, { kind = "subtle" })
-    close:SetPoint("TOPRIGHT", -4, -4)
+    f.title:SetPoint("TOPLEFT", 8, -8)
+    local close = W.CloseButton(f, function() self:Hide() end, 22)
+    close:SetPoint("TOPRIGHT", -1, -1)
     f.cmdToggle = W.Button(f, "지휘 ▾", 52, 16, function()
         cfg().commands = cfg().commands == false
         self:Layout()
     end, { kind = "subtle", size = 10, tooltip = { "지휘 명령 버튼 펼치기/접기" } })
-    f.cmdToggle:SetPoint("RIGHT", close, "LEFT", -4, 0)
+    f.cmdToggle:SetPoint("RIGHT", close, "LEFT", -2, 0)
     f.body = W.Paragraph(f, "", BW * 4 + GAP * 3, 11)
-    f.body:SetPoint("TOPLEFT", 6, -22)
+    f.body:SetPoint("TOPLEFT", 6, -25)
 
     -- 경매 줄: 카운트 / 카운트 취소 / 메인 창
     f.auctionRow = CreateFrame("Frame", nil, f)
@@ -178,7 +178,7 @@ function HUD:Layout()
     local f = self.frame
     if not f then return end
     local lines = f.lineCount or 4
-    local y = 22 + lines * 14 + 6
+    local y = 25 + lines * 14 + 6
     f.auctionRow:ClearAllPoints()
     f.auctionRow:SetPoint("TOPLEFT", 6, -y)
     y = y + BH + GAP

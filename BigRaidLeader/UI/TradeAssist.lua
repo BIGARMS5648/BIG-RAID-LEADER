@@ -95,14 +95,14 @@ end
 
 function TA:Create()
     if self.frame then return self.frame end
-    local f = W.Panel(UIParent, T.colors.bg, T.colors.border)
+    local f = W.Panel(UIParent, nil, nil, "panel")
     _G.BigRaidLeaderTradeAssist = f
     f:SetSize(330, 150)
     f:SetFrameStrata("HIGH")
     f:SetClampedToScreen(true)
     f:Hide()
     f.title = W.Label(f, "BIG RAID LEADER 거래 정보", 12, "gold")
-    f.title:SetPoint("TOPLEFT", 10, -8)
+    f.title:SetPoint("TOPLEFT", 10, -9)
     f.body = W.Paragraph(f, "", 310, 11)
     f.body:SetPoint("TOPLEFT", 10, -26)
     f.fill = W.Button(f, "분배금 입력", 90, 22, function()
@@ -112,8 +112,8 @@ function TA:Create()
     f.fill:SetPoint("BOTTOMLEFT", 10, 8)
     f.open = W.Button(f, "거래 로그", 70, 22, function() if BRL.UI then BRL.UI:Open("trades") end end)
     f.open:SetPoint("LEFT", f.fill, "RIGHT", 6, 0)
-    local close = W.Button(f, "X", 20, 18, function() f:Hide() f.dismissed = BRL.TradeTracker.current and BRL.TradeTracker.current.id end, { kind = "subtle" })
-    close:SetPoint("TOPRIGHT", -4, -4)
+    local close = W.CloseButton(f, function() f:Hide() f.dismissed = BRL.TradeTracker.current and BRL.TradeTracker.current.id end, 24)
+    close:SetPoint("TOPRIGHT", -2, -2)
     self.frame = f
     return f
 end
@@ -141,7 +141,9 @@ function TA:Update(sess)
     self.lastInfo = info
     local lines = self:Lines(info)
     f.body:SetText(table.concat(lines, "\n"))
-    f:SetHeight(48 + #lines * 14 + 4)
+    -- 긴 줄은 접혀서 여러 줄이 되므로 실제 글자 높이로 창 높이를 맞춤 (버튼과 겹침 방지)
+    local bh = math.max(#lines * 14, f.body:GetStringHeight() or 0)
+    f:SetHeight(26 + bh + 6 + 30)
     if info.payout > 0 then f.fill:Show() else f.fill:Hide() end
     self:Anchor(f)
     f:Show()

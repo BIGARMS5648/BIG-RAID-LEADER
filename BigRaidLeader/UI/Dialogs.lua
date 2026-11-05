@@ -6,7 +6,7 @@ local D = {}
 BRL.Dialogs = D
 
 local function makeFrame(name, width, height)
-    local f = W.Panel(UIParent, T.colors.bg, T.colors.border)
+    local f = W.Panel(UIParent, nil, nil, "dialog")
     f:SetSize(width, height)
     f:SetPoint("CENTER", 0, 80)
     f:SetFrameStrata("DIALOG")
@@ -20,11 +20,11 @@ local function makeFrame(name, width, height)
     f:Hide()
     _G[name] = f
     table.insert(UISpecialFrames, name)
-    f.title = W.Label(f, "", 14, "goldBright")
-    f.title:SetPoint("TOPLEFT", 14, -12)
-    f.title:SetPoint("RIGHT", -34, 0)
-    local close = W.Button(f, "X", 22, 20, function() f:Hide() end, { kind = "subtle" })
-    close:SetPoint("TOPRIGHT", -8, -8)
+    f.title = W.Label(f, "", 14, "gold")
+    f.title:SetPoint("TOPLEFT", 18, -17)
+    f.title:SetPoint("RIGHT", -38, 0)
+    local close = W.CloseButton(f, function() f:Hide() end, 30)
+    close:SetPoint("TOPRIGHT", -5, -5)
     return f
 end
 
@@ -38,13 +38,13 @@ function D.Confirm(text, onAccept, opts)
     if not f then
         f = makeFrame("BigRaidLeaderConfirmDialog", 420, 180)
         f.body = W.Paragraph(f, "", 390, 12)
-        f.body:SetPoint("TOPLEFT", 16, -40)
+        f.body:SetPoint("TOPLEFT", 18, -42)
         f.accept = W.Button(f, "확인", 110, 24, function()
             local cb = f.onAccept
             f:Hide()
             if cb then BRL.SafeCall("확인 대화상자", cb) end
         end, { kind = "primary" })
-        f.accept:SetPoint("BOTTOMRIGHT", -16, 14)
+        f.accept:SetPoint("BOTTOMRIGHT", -18, 16)
         f.cancel = W.Button(f, "취소", 90, 24, function()
             local cb = f.onCancel
             f:Hide()
@@ -60,13 +60,8 @@ function D.Confirm(text, onAccept, opts)
     local h = 100 + math.min(260, (f.body.GetStringHeight and f.body:GetStringHeight() or 40))
     f:SetHeight(math.max(160, h))
     f.onAccept, f.onCancel = onAccept, opts.onCancel
-    if opts.danger then
-        T.ApplyBackdrop(f.accept, T.colors.danger, T.colors.border)
-        f.accept.baseColor = T.colors.danger
-    else
-        T.ApplyBackdrop(f.accept, T.colors.primary, T.colors.border)
-        f.accept.baseColor = T.colors.primary
-    end
+    -- 위험한 작업은 경고 문구 색으로 표시 (버튼은 게임 기본 모양 유지)
+    T.SetTextColor(f.title, opts.danger and "red" or "gold")
     f:Show()
     f:Raise()
     return f
@@ -88,8 +83,8 @@ function D.Input(title, fields, onAccept, opts)
         f = makeFrame("BigRaidLeaderInputDialog", 460, 200)
         f.widgets = {}
         f.err = W.Label(f, "", 11, "red")
-        f.err:SetPoint("BOTTOMLEFT", 16, 46)
-        f.err:SetPoint("RIGHT", -16, 0)
+        f.err:SetPoint("BOTTOMLEFT", 18, 48)
+        f.err:SetPoint("RIGHT", -18, 0)
         f.accept = W.Button(f, "확인", 110, 24, function()
             local values = {}
             for _, w in ipairs(f.widgets) do
@@ -127,11 +122,11 @@ function D.Input(title, fields, onAccept, opts)
             end
             f:Hide()
         end, { kind = "primary" })
-        f.accept:SetPoint("BOTTOMRIGHT", -16, 14)
+        f.accept:SetPoint("BOTTOMRIGHT", -18, 16)
         f.cancel = W.Button(f, "취소", 90, 24, function() f:Hide() end)
         f.cancel:SetPoint("RIGHT", f.accept, "LEFT", -8, 0)
         f.desc = W.Paragraph(f, "", 420, 11)
-        f.desc:SetPoint("TOPLEFT", 16, -36)
+        f.desc:SetPoint("TOPLEFT", 18, -40)
         D.input = f
     end
     for _, w in ipairs(f.widgets) do
@@ -143,10 +138,10 @@ function D.Input(title, fields, onAccept, opts)
     f.desc:SetText(opts.description or "")
     f.err:SetText("")
     f.accept:SetText(opts.acceptText or "확인")
-    local y = opts.description and (48 + math.min(80, f.desc:GetStringHeight() or 14)) or 42
+    local y = opts.description and (52 + math.min(80, f.desc:GetStringHeight() or 14)) or 46
     for _, fd in ipairs(fields) do
         local label = W.Label(f, fd.label or fd.key, 12, "muted")
-        label:SetPoint("TOPLEFT", 16, -y - 4)
+        label:SetPoint("TOPLEFT", 18, -y - 4)
         label:SetWidth(120)
         local ctrl
         if fd.type == "check" then
@@ -210,16 +205,16 @@ function D.CopyText(title, text, opts)
     if not f then
         f = makeFrame("BigRaidLeaderCopyDialog", 620, 460)
         f.hint = W.Label(f, "Ctrl+A 로 전체 선택 후 Ctrl+C 로 복사하세요.", 11, "muted")
-        f.hint:SetPoint("TOPLEFT", 16, -34)
-        f.area = W.TextArea(f, 588, 360)
-        f.area:SetPoint("TOPLEFT", 16, -54)
+        f.hint:SetPoint("TOPLEFT", 18, -40)
+        f.area = W.TextArea(f, 584, 350)
+        f.area:SetPoint("TOPLEFT", 18, -58)
         f.selectAll = W.Button(f, "전체 선택", 100, 24, function()
             f.area.edit:SetFocus()
             f.area.edit:HighlightText()
         end)
-        f.selectAll:SetPoint("BOTTOMLEFT", 16, 12)
+        f.selectAll:SetPoint("BOTTOMLEFT", 18, 16)
         f.extra = W.Button(f, "", 140, 24, function() if f.extraFn then f.extraFn(f.area:GetText()) end end, { kind = "primary" })
-        f.extra:SetPoint("BOTTOMRIGHT", -16, 12)
+        f.extra:SetPoint("BOTTOMRIGHT", -18, 16)
         D.copy = f
     end
     f.title:SetText(title or "복사")
@@ -262,18 +257,18 @@ function D.Select(title, items, onSelect, opts)
     if not f then
         f = makeFrame("BigRaidLeaderSelectDialog", 520, 400)
         f.desc = W.Paragraph(f, "", 480, 11)
-        f.desc:SetPoint("TOPLEFT", 16, -34)
+        f.desc:SetPoint("TOPLEFT", 18, -40)
         f.list = W.List(f, {
             columns = { { key = "text", title = "항목", width = 0 }, { key = "sub", title = "", width = 170, align = "RIGHT" } },
             onDoubleClick = function(data) f.choose(data) end,
         })
-        f.list:SetPoint("TOPLEFT", 16, -60)
+        f.list:SetPoint("TOPLEFT", 16, -62)
         f.list:SetPoint("BOTTOMRIGHT", -16, 48)
         f.ok = W.Button(f, "선택", 100, 24, function()
             local sel = f.list:GetSelected()
             if sel then f.choose(sel) end
         end, { kind = "primary" })
-        f.ok:SetPoint("BOTTOMRIGHT", -16, 12)
+        f.ok:SetPoint("BOTTOMRIGHT", -18, 16)
         D.select = f
     end
     f.choose = function(data)

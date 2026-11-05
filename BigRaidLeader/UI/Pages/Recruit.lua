@@ -34,7 +34,7 @@ local function buildRecruit(page, host)
     s1:SetPoint("TOPLEFT", 4, -62)
     page.message = W.TextArea(host, 420, 60, { onCommit = function(text) R:SetField("message", (text:gsub("\n", " "))) end })
     page.message:SetPoint("TOPLEFT", 4, -84)
-    local hint = W.Label(host, "치환: {raid} {size} {have} {need} {recommend}(추천 직업) {roles} {note}", 11, "muted")
+    local hint = W.Label(host, "치환: {raid} {size} {have} {need} {recommend} {roles} {note}", 11, "muted")
     hint:SetPoint("TOPLEFT", 4, -148)
     page.preview = W.Paragraph(host, "", 420, 12)
     page.preview:SetPoint("TOPLEFT", 4, -166)
@@ -43,11 +43,15 @@ local function buildRecruit(page, host)
     local s2 = W.Section(host, "역할별 / 직업별 모집 정원")
     s2:SetPoint("TOPLEFT", 4, -212)
     page.roleEdits = {}
-    for i, role in ipairs(BRL.Data.Roles) do
+    -- 역할 이름 길이가 달라서(원거리 딜러 등) 실제 글자 폭을 재서 차례로 배치
+    local rx = 4
+    for _, role in ipairs(BRL.Data.Roles) do
         local lbl = W.Label(host, BRL.Label("CR_", role), 12, "muted")
-        lbl:SetPoint("TOPLEFT", 4 + (i - 1) * 105, -238)
+        lbl:SetPoint("TOPLEFT", rx, -238)
+        rx = rx + math.ceil(lbl:GetStringWidth() or 60) + 6
         local eb = W.EditBox(host, 36, 22, { numeric = true, onCommit = function(text) R:SetQuota("role", role, text) end })
-        eb:SetPoint("TOPLEFT", 64 + (i - 1) * 105, -234)
+        eb:SetPoint("TOPLEFT", rx, -234)
+        rx = rx + 36 + 16
         page.roleEdits[role] = eb
     end
     page.classEdits = {}
@@ -73,7 +77,10 @@ local function buildRecruit(page, host)
     f2:Add(W.Button(host, "모집 종료 공지", 110, 24, function()
         D.Confirm("모집을 종료하고 선택한 채널에 마감 공지를 보낼까요?", function() R:CloseNotice(page.channel:GetValue()) end)
     end, { perm = "raid.invite" }))
-    page.activeBtn = f2:Add(W.Button(host, "", 100, 24, function() R:SetActive(not R:IsActive()) end))
+    -- 지원 접수 켜기/끄기: 오른쪽 지원자 대기열 제목 줄 끝
+    page.activeBtn = W.Button(host, "", 110, 22, function() R:SetActive(not R:IsActive()) end,
+        { tooltip = { "켜 두면 모집 문구를 보고 귓속말한 지원자를 대기열에 자동으로 추가합니다." } })
+    page.activeBtn:SetPoint("TOPRIGHT", -4, -166)
     page.refill = W.Label(host, "", 12, "red")
     page.refill:SetPoint("TOPLEFT", 4, -386)
     local note = W.Paragraph(host, "· 공개 채널/일반/외치기 전송은 게임 정책상 클릭할 때마다 1회만 전송됩니다.\n· 모집 진행 중에만 귓속말 지원자를 자동으로 대기열에 추가합니다.", 420, 11)
@@ -89,7 +96,7 @@ local function buildRecruit(page, host)
     s5:SetPoint("TOPLEFT", 440, -170)
     page.list = W.List(host, {
         columns = {
-            { title = "이름", width = 110, render = function(a) return BRL.Data.ColorName(a.name, a.class) .. (a.inGroup and " |cff9e9a8f(공대원)|r" or "") end },
+            { title = "이름", width = 110, render = function(a) return BRL.Data.ColorName(a.name, a.class) .. (a.inGroup and " |cff9d9d9d(공대원)|r" or "") end },
             { title = "직업/역할", width = 90, render = function(a) return (a.class and BRL.Data.ClassName(a.class) or "?") .. "/" .. (a.role and BRL.Label("CR_", a.role) or "?") end },
             { title = "상태", width = 60, render = function(a)
                 local labels = { pending = "대기", approved = "승인", rejected = "거절", hold = "보류" }
@@ -263,7 +270,7 @@ local function buildAnalysis(page, host)
     f:Add(W.Button(f.parent, "사용 불가 직업", 100, 24, function()
         local items = {}
         for _, c in ipairs(BRL.Data.ClassOrder) do
-            items[#items + 1] = { value = c, text = (Comp:IsExcluded(c) and "|cffff5c5c[제외]|r " or "") .. BRL.Data.ColorName(BRL.Data.ClassName(c), c) }
+            items[#items + 1] = { value = c, text = (Comp:IsExcluded(c) and "|cffff2020[제외]|r " or "") .. BRL.Data.ColorName(BRL.Data.ClassName(c), c) }
         end
         D.Select("추천에서 제외할 직업 (선택 시 전환)", items, function(c) Comp:SetExcluded(c, not Comp:IsExcluded(c)) end,
             { description = "진영/서버 사정으로 모집할 수 없는 직업을 제외하면 그 직업만 제공하는 시너지는 '직업 제한'으로 표시됩니다." })

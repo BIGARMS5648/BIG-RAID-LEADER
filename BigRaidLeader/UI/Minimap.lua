@@ -1,6 +1,6 @@
 -- BIG RAID LEADER - 미니맵 버튼
 local _, BRL = ...
-local T, W = BRL.Theme, BRL.Widgets
+local W = BRL.Widgets
 
 local MM = {}
 BRL.Minimap = MM
@@ -14,17 +14,26 @@ end
 
 function MM:Create()
     if self.button or not _G.Minimap then return end
-    local b = CreateFrame("Button", "BigRaidLeaderMinimapButton", Minimap, "BackdropTemplate")
-    b:SetSize(30, 30)
+    -- 기본 미니맵 버튼 모양 (둥근 추적 테두리 + 아이콘)
+    local b = CreateFrame("Button", "BigRaidLeaderMinimapButton", Minimap)
+    b:SetSize(31, 31)
     b:SetFrameStrata("MEDIUM")
     b:SetFrameLevel(8)
-    T.ApplyBackdrop(b, T.colors.header, T.colors.border)
+    local bg = b:CreateTexture(nil, "BACKGROUND")
+    bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    bg:SetSize(20, 20)
+    bg:SetPoint("TOPLEFT", 7, -5)
     local icon = b:CreateTexture(nil, "ARTWORK")
     icon:SetTexture("Interface\\Icons\\INV_Misc_Coin_02")
-    icon:SetPoint("TOPLEFT", 4, -4)
-    icon:SetPoint("BOTTOMRIGHT", -4, 4)
+    icon:SetSize(18, 18)
+    icon:SetPoint("TOPLEFT", 7, -6)
     if icon.SetTexCoord then icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
     b.icon = icon
+    local border = b:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    border:SetSize(53, 53)
+    border:SetPoint("TOPLEFT")
+    b:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight", "ADD")
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:RegisterForDrag("LeftButton")
     b:SetScript("OnClick", function(_, button)

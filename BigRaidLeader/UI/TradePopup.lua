@@ -28,9 +28,9 @@ end
 
 function TP:Create()
     if self.frame then return self.frame end
-    local f = W.Panel(UIParent, T.colors.bg, T.colors.border)
+    local f = W.Panel(UIParent, nil, nil, "dialog")
     _G.BigRaidLeaderTradePopup = f
-    f:SetSize(440, 196)
+    f:SetSize(450, 206)
     f:SetPoint("TOP", 0, -200)
     f:SetFrameStrata("DIALOG")
     f:SetMovable(true)
@@ -40,15 +40,15 @@ function TP:Create()
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetClampedToScreen(true)
     f:Hide()
-    f.title = W.Label(f, "거래 완료 - 목적을 선택하세요", 14, "goldBright")
-    f.title:SetPoint("TOPLEFT", 12, -10)
-    f.body = W.Paragraph(f, "", 410, 12)
-    f.body:SetPoint("TOPLEFT", 12, -34)
-    f.suggest = W.Paragraph(f, "", 410, 11)
-    f.suggest:SetPoint("TOPLEFT", 12, -84)
+    f.title = W.Label(f, "거래 완료 - 목적을 선택하세요", 14, "gold")
+    f.title:SetPoint("TOPLEFT", 18, -17)
+    f.body = W.Paragraph(f, "", 414, 12)
+    f.body:SetPoint("TOPLEFT", 18, -40)
+    f.suggest = W.Paragraph(f, "", 414, 11)
+    f.suggest:SetPoint("TOPLEFT", 18, -88)
     T.SetTextColor(f.suggest, "yellow")
-    local close = W.Button(f, "X", 22, 20, function() f:Hide() end, { kind = "subtle" })
-    close:SetPoint("TOPRIGHT", -6, -6)
+    local close = W.CloseButton(f, function() f:Hide() end, 30)
+    close:SetPoint("TOPRIGHT", -5, -5)
     f.apply = W.Button(f, "제안대로 연결", 130, 24, function()
         local tr = f.trade
         if not tr then return end
@@ -56,7 +56,7 @@ function TP:Create()
         BRL:Print("거래 연결 %d건 승인", n)
         f:Hide()
     end, { kind = "primary" })
-    f.apply:SetPoint("BOTTOMLEFT", 12, 44)
+    f.apply:SetPoint("BOTTOMLEFT", 18, 46)
     f.auction = W.Button(f, "경매금 수금", 100, 24, function()
         local tr = f.trade
         f:Hide()
@@ -74,7 +74,7 @@ function TP:Create()
         if tr then BRL.TradeJournal:SetPurpose(tr.id, "personal", "거래 직후 분류") end
         f:Hide()
     end)
-    f.personal:SetPoint("BOTTOMLEFT", 12, 14)
+    f.personal:SetPoint("BOTTOMLEFT", 18, 16)
     f.income = W.Button(f, "기타 공대 수입", 110, 24, function()
         local tr = f.trade
         if tr then BRL.TradeJournal:SetPurpose(tr.id, "raid_income", "거래 직후 분류") end
@@ -87,8 +87,8 @@ function TP:Create()
         f:Hide()
     end)
     f.expense:SetPoint("LEFT", f.income, "RIGHT", 6, 0)
-    f.later = W.Button(f, "나중에", 70, 24, function() f:Hide() end, { kind = "subtle" })
-    f.later:SetPoint("BOTTOMRIGHT", -12, 14)
+    f.later = W.Button(f, "나중에", 70, 24, function() f:Hide() end)
+    f.later:SetPoint("BOTTOMRIGHT", -18, 16)
     self.frame = f
     return f
 end

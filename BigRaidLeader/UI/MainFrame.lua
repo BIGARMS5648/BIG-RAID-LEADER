@@ -48,12 +48,19 @@ end
 ---------------------------------------------------------------------------
 -- 창 생성
 ---------------------------------------------------------------------------
+-- 창 크기: 화면들이 약 890px 폭 고정 배치이므로 최소 크기를 기본 크기로 둔다 (작게 줄이면 겹침)
+UI.MIN_W, UI.MIN_H = 1080, 700
+UI.NAV_W = 152
+
 function UI:Create()
     if self.frame then return self.frame end
     local cfg = BRL.char.ui
-    local f = W.Panel(UIParent, T.colors.bg, T.colors.border)
+    -- 저장된 크기가 최소보다 작으면 보정 (이전 버전은 900x600 까지 줄일 수 있었음)
+    cfg.width = math.max(self.MIN_W, cfg.width or self.MIN_W)
+    cfg.height = math.max(self.MIN_H, cfg.height or self.MIN_H)
+    local f = W.Panel(UIParent, nil, nil, "dialog")
     _G.BigRaidLeaderMainFrame = f
-    f:SetSize(cfg.width or 1080, cfg.height or 700)
+    f:SetSize(cfg.width, cfg.height)
     if cfg.point then
         f:SetPoint(cfg.point[1], UIParent, cfg.point[3] or cfg.point[1], cfg.point[4] or 0, cfg.point[5] or 0)
     else
@@ -64,92 +71,94 @@ function UI:Create()
     f:SetToplevel(true)
     f:SetMovable(true)
     f:SetResizable(true)
-    if f.SetResizeBounds then f:SetResizeBounds(900, 600, 1800, 1200) elseif f.SetMinResize then f:SetMinResize(900, 600) end
+    if f.SetResizeBounds then f:SetResizeBounds(self.MIN_W, self.MIN_H, 1800, 1200) elseif f.SetMinResize then f:SetMinResize(self.MIN_W, self.MIN_H) end
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
     f:Hide()
     table.insert(UISpecialFrames, "BigRaidLeaderMainFrame")
     self.frame = f
 
-    -- 제목 표시줄
-    local title = W.Panel(f, T.colors.header, T.colors.border)
-    title:SetPoint("TOPLEFT", 1, -1)
-    title:SetPoint("TOPRIGHT", -1, -1)
-    title:SetHeight(36)
-    title:EnableMouse(true)
-    title:RegisterForDrag("LeftButton")
-    title:SetScript("OnDragStart", function() f:StartMoving() end)
-    title:SetScript("OnDragStop", function()
+    -- 창 끌기: 위쪽 띠 (머리 장식 포함)
+    local drag = CreateFrame("Frame", nil, f)
+    drag:SetPoint("TOPLEFT", 12, 12)
+    drag:SetPoint("TOPRIGHT", -40, 12)
+    drag:SetHeight(52)
+    drag:EnableMouse(true)
+    drag:RegisterForDrag("LeftButton")
+    drag:SetScript("OnDragStart", function() f:StartMoving() end)
+    drag:SetScript("OnDragStop", function()
         f:StopMovingOrSizing()
         local p, _, rp, x, y = f:GetPoint()
         cfg.point = { p, nil, rp, x, y }
     end)
-    local logo = W.Label(title, "BIG RAID LEADER", 17, "goldBright")
-    logo:SetPoint("LEFT", 14, 0)
-    local sub = W.Label(title, "빅 레이드 리더  v" .. BRL.VERSION, 11, "muted")
-    sub:SetPoint("LEFT", logo, "RIGHT", 10, -1)
-    local close = W.Button(title, "X", 26, 22, function() f:Hide() end, { kind = "subtle" })
-    close:SetPoint("RIGHT", -6, 0)
-    self.roleBadge = W.Label(title, "", 12, "gold", "RIGHT")
-    self.roleBadge:SetPoint("RIGHT", close, "LEFT", -12, 0)
-    self.combatBadge = W.Label(title, "", 12, "red", "RIGHT")
-    self.combatBadge:SetPoint("RIGHT", self.roleBadge, "LEFT", -12, 0)
-    self.sessionDrop = W.Dropdown(title, 230, function() return self:SessionItems() end, function(v)
+    self.dragBar = drag
+
+    -- 머리 장식 + 제목 (기본 대화상자 머리)
+    self.titleText = W.DialogHeader(f, "BIG RAID LEADER", 13)
+    local close = W.CloseButton(f, function() f:Hide() end, 30)
+    close:SetPoint("TOPRIGHT", -5, -5)
+    self.closeButton = close
+
+    -- 윗줄: 세션 선택 (왼쪽) / 전투·권한 표시 (오른쪽)
+    self.sessionDrop = W.Dropdown(f, 280, function() return self:SessionItems() end, function(v)
         if v == "__new" then
             self:PromptNewSession()
         elseif v then
             BRL.Session:SetActive(v)
         end
-    end, { placeholder = "공격대 세션 없음", popupWidth = 260 })
-    self.sessionDrop:SetPoint("LEFT", sub, "RIGHT", 24, 1)
+    end, { placeholder = "공격대 세션 없음", popupWidth = 300 })
+    self.sessionDrop:SetPoint("TOPLEFT", 16, -17)
     W.SetTooltip(self.sessionDrop, "공격대 세션", { "경매·거래 연결·정산은 공격대 세션 단위로 관리됩니다.", "세션을 선택하거나 새로 만드세요." })
+    local ver = W.Label(f, "v" .. BRL.VERSION, 10, "disabled")
+    ver:SetPoint("LEFT", self.sessionDrop, "RIGHT", 8, 0)
+    self.versionLabel = ver
+    self.roleBadge = W.Label(f, "", 12, "gold", "RIGHT")
+    self.roleBadge:SetPoint("RIGHT", f, "TOPRIGHT", -40, -28)
+    self.combatBadge = W.Label(f, "", 12, "red", "RIGHT")
+    self.combatBadge:SetPoint("RIGHT", self.roleBadge, "LEFT", -12, 0)
 
-    -- 메뉴
-    local nav = W.Panel(f, T.colors.panel, T.colors.borderDim)
-    nav:SetPoint("TOPLEFT", 1, -38)
-    nav:SetPoint("BOTTOMLEFT", 1, 22)
-    nav:SetWidth(168)
+    -- 메뉴 (옵션 창 분류 목록처럼)
+    local nav = W.Panel(f, nil, nil, "box")
+    nav:SetPoint("TOPLEFT", 12, -44)
+    nav:SetPoint("BOTTOMLEFT", 12, 30)
+    nav:SetWidth(self.NAV_W)
     self.nav = nav
     self.navButtons = {}
     for i, def in ipairs(self.pageOrder) do
-        local b = W.Button(nav, def.title, 156, 30, function() self:Open(def.key) end, { kind = "subtle", size = 13 })
-        b:SetPoint("TOPLEFT", 6, -6 - (i - 1) * 34)
-        b.label:SetJustifyH("LEFT")
-        b.label:SetPoint("LEFT", 12, 0)
+        local b = W.Button(nav, def.title, self.NAV_W - 12, 26, function() self:Open(def.key) end, { kind = "nav", size = 13 })
+        b:SetPoint("TOPLEFT", 6, -7 - (i - 1) * 28)
         b.badge = W.Label(b, "", 11, "red", "RIGHT")
-        b.badge:SetPoint("RIGHT", -8, 0)
+        b.badge:SetPoint("RIGHT", -6, 0)
+        b.label:SetPoint("RIGHT", -34, 0)
         b.key = def.key
         self.navButtons[def.key] = b
     end
 
     -- 내용 영역
-    local content = W.Panel(f, T.colors.bg, T.colors.bg)
+    local content = W.Panel(f, nil, nil, "box")
     content:SetPoint("TOPLEFT", nav, "TOPRIGHT", 2, 0)
-    content:SetPoint("BOTTOMRIGHT", -1, 22)
+    content:SetPoint("BOTTOMRIGHT", -12, 30)
     self.content = content
 
-    -- 상태 표시줄
-    local status = W.Panel(f, T.colors.panel, T.colors.borderDim)
-    status:SetPoint("BOTTOMLEFT", 1, 1)
-    status:SetPoint("BOTTOMRIGHT", -1, 1)
-    status:SetHeight(20)
-    self.statusLeft = W.Label(status, "", 11, "muted")
-    self.statusLeft:SetPoint("LEFT", 8, 0)
-    self.statusRight = W.Label(status, "/brl 도움말 · 단축키 설정: 키 설정 > 애드온", 11, "muted", "RIGHT")
-    self.statusRight:SetPoint("RIGHT", -24, 0)
+    -- 상태 표시줄 (창 아래 테두리 안쪽 글자)
+    self.statusLeft = W.Label(f, "", 11, "muted")
+    self.statusLeft:SetPoint("BOTTOMLEFT", 18, 13)
+    self.statusLeft:SetPoint("BOTTOMRIGHT", f, "BOTTOM", 60, 13)
+    self.statusRight = W.Label(f, "/brl 도움말 · 단축키 설정: 키 설정 > 애드온", 11, "disabled", "RIGHT")
+    self.statusRight:SetPoint("BOTTOMRIGHT", -34, 13)
 
-    -- 크기 조절
+    -- 크기 조절 (대화 창 크기 손잡이)
     local grip = CreateFrame("Button", nil, f)
     grip:SetSize(16, 16)
-    grip:SetPoint("BOTTOMRIGHT", -2, 2)
-    local gt = grip:CreateTexture(nil, "OVERLAY")
-    gt:SetTexture(T.WHITE)
-    gt:SetAllPoints()
-    gt:SetVertexColor(T.colors.border[1], T.colors.border[2], T.colors.border[3], 0.6)
+    grip:SetPoint("BOTTOMRIGHT", -10, 10)
+    grip:SetNormalTexture(T.TEX.sizeGrabUp)
+    grip:SetPushedTexture(T.TEX.sizeGrabDown)
+    grip:SetHighlightTexture(T.TEX.sizeGrabHighlight, "ADD")
     grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
     grip:SetScript("OnMouseUp", function()
         f:StopMovingOrSizing()
-        cfg.width, cfg.height = math.floor(f:GetWidth()), math.floor(f:GetHeight())
+        cfg.width = math.max(self.MIN_W, math.floor(f:GetWidth()))
+        cfg.height = math.max(self.MIN_H, math.floor(f:GetHeight()))
         self:Refresh()
     end)
 
@@ -205,18 +214,13 @@ function UI:Open(key, tab)
     for k, def in pairs(self.pages) do
         if def.frame then def.frame:Hide() end
         local b = self.navButtons[k]
-        if b then
-            local active = k == key
-            b.baseColor = active and T.colors.primary or T.colors.panel2
-            T.ApplyBackdrop(b, b.baseColor, active and T.colors.border or T.colors.borderDim)
-            T.SetTextColor(b.label, active and "goldBright" or "text")
-        end
+        if b then W.SetSelected(b, k == key) end
     end
     local def = self.pages[key]
     if not def.frame then
         local page = CreateFrame("Frame", nil, self.content)
-        page:SetPoint("TOPLEFT", 8, -8)
-        page:SetPoint("BOTTOMRIGHT", -8, 8)
+        page:SetPoint("TOPLEFT", 6, -6)
+        page:SetPoint("BOTTOMRIGHT", -6, 6)
         def.frame = page
         page.def = def
         BRL.SafeCall("화면 생성:" .. key, def.build, page)
@@ -285,7 +289,7 @@ end
 
 -- 페이지 공통: 상단 제목 + 안내
 function UI:PageHeader(page, title, subtitle)
-    local t = W.Label(page, title, 16, "goldBright")
+    local t = W.Label(page, title, 16, "gold")
     t:SetPoint("TOPLEFT", 4, -2)
     if subtitle then
         local s = W.Label(page, subtitle, 11, "muted")
@@ -350,7 +354,7 @@ function UI:RegisterSettingsCategory()
     if not (_G.Settings and _G.Settings.RegisterCanvasLayoutCategory and _G.Settings.RegisterAddOnCategory) then return end
     local panel = CreateFrame("Frame")
     panel.name = BRL.TITLE
-    local t = W.Label(panel, BRL.TITLE .. " (빅 레이드 리더)", 16, "goldBright")
+    local t = W.Label(panel, BRL.TITLE .. " (빅 레이드 리더)", 16, "gold")
     t:SetPoint("TOPLEFT", 16, -16)
     local d = W.Paragraph(panel, "모든 설정은 BIG RAID LEADER 창의 [설정] 메뉴에서 관리합니다. 명령어: /brl", 500, 12)
     d:SetPoint("TOPLEFT", 16, -46)

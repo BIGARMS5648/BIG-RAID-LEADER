@@ -84,7 +84,7 @@ local function build(page)
     T.SetTextColor(pc.info, "muted")
     pc.list = W.List(pc, {
         columns = {
-            { title = "시설", width = 120, render = function(row) return row.facility.name .. " |cff9e9a8f" .. row.facility.nameEn .. "|r" end },
+            { title = "시설", width = 120, render = function(row) return row.facility.name .. " |cff9d9d9d" .. row.facility.nameEn .. "|r" end },
             { title = "효과", width = 150, render = function(row) return row.facility.effect end },
             { title = "대체 버프", width = 120, render = function(row) return row.facility.replacesName end },
             { title = "보스 필요", width = 64, align = "CENTER", render = function(row) return row.required and T.Color("yellow", "필요") or "" end },

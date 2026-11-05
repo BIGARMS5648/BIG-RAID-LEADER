@@ -50,23 +50,23 @@ local function build(page)
     check(pg, 8, 204, "미니맵 버튼 숨기기", "minimap.hide", nil, function() BRL.Minimap:UpdateVisibility() end)
     check(pg, 230, 204, "공대장 HUD 표시", "hud.show", { "메인 창 없이 경매/카운트, 거래 상대, 풀링 판정, 도핑, 미지급을 보여주는 작은 창", "/brl hud" },
         function(v) if v then BRL.HUD:Show() else BRL.HUD:Hide() end end)
-    check(pg, 360, 204, "HUD 위치 잠금", "hud.locked")
+    check(pg, 8, 228, "HUD 위치 잠금", "hud.locked")
     check(pg, 230, 228, "HUD 지휘 명령 버튼", "hud.commands", { "준비 확인/풀링/공격 중지/후퇴/재정비/휴식/공략 안내 버튼을 HUD 에 표시합니다.", "HUD 제목줄의 [지휘]로도 접고 펼 수 있습니다." },
         function() if BRL.HUD.frame then BRL.HUD:Layout() end end)
     local sl = W.Label(pg, "창 크기 배율", 12, "muted")
-    sl:SetPoint("TOPLEFT", 8, -236)
+    sl:SetPoint("TOPLEFT", 8, -262)
     local scaleDrop = W.Dropdown(pg, 100, {
         { value = 0.8, text = "80%" }, { value = 0.9, text = "90%" }, { value = 1.0, text = "100%" }, { value = 1.1, text = "110%" }, { value = 1.2, text = "120%" },
     }, function(v) BRL.char.ui.scale = v if UI.frame then UI.frame:SetScale(v) end end)
-    scaleDrop:SetPoint("TOPLEFT", 110, -232)
+    scaleDrop:SetPoint("TOPLEFT", 110, -258)
     scaleDrop:SetValue(BRL.char.ui.scale or 1, true)
     W.Button(pg, "창 위치 초기화", 110, 22, function()
         BRL.char.ui.point = nil
         if UI.frame then UI.frame:ClearAllPoints() UI.frame:SetPoint("CENTER") end
-    end):SetPoint("TOPLEFT", 220, -232)
+    end):SetPoint("TOPLEFT", 220, -258)
     local s4 = W.Section(pg, "버프 / 준비 확인")
-    s4:SetPoint("TOPLEFT", 4, -270)
-    check(pg, 8, 294, "야영지 효과가 대응 직업 버프를 대체한 것으로 인정", "buffs.campReplacesClassBuff")
+    s4:SetPoint("TOPLEFT", 4, -296)
+    check(pg, 8, 320, "야영지 효과가 대응 직업 버프를 대체한 것으로 인정", "buffs.campReplacesClassBuff")
     W.Button(pg, "버프 키워드 보완", 120, 22, function()
         local items = {}
         for _, b in ipairs(BRL.Data.ClassBuffs) do items[#items + 1] = { value = b.key, text = b.name } end
@@ -82,7 +82,7 @@ local function build(page)
                 return true
             end, { description = "포에버 클라이언트의 실제 버프 이름이 기본 데이터와 다르면 여기에 추가하세요." })
         end)
-    end):SetPoint("TOPLEFT", 8, -322)
+    end):SetPoint("TOPLEFT", 8, -348)
     local s5 = W.Section(pg, "전투 준비 (도핑 점검)")
     s5:SetPoint("TOPLEFT", 450, 0)
     check(pg, 454, 24, "음식 버프 필수", "consumables.requireFood")

@@ -28,9 +28,9 @@ local function build(page)
         columns = {
             { title = "보스", width = 0, render = function(b)
                 local prog = P:Boss(b.key)
-                local mark = prog.kills > 0 and "|cff5cf272✔|r " or ""
+                local mark = prog.kills > 0 and "|cff20ff20✔|r " or ""
                 local cur = P:GetCurrentBoss() == b.key and "|cffffd100▶|r " or ""
-                return cur .. mark .. b.name .. (b.verified == false and " |cff9e9a8f?|r" or "")
+                return cur .. mark .. b.name .. (b.verified == false and " |cff9d9d9d?|r" or "")
             end },
             { title = "시도", width = 34, align = "CENTER", render = function(b) local p = P:Boss(b.key) return p.attempts > 0 and p.attempts or "" end },
         },
@@ -229,7 +229,7 @@ local function build(page)
     pl.kind = W.Dropdown(side, 170, kindItems)
     pl.kind:SetPoint("TOPLEFT", 0, 0)
     pl.kind:SetValue("tank", true)
-    pl.label = W.EditBox(side, 170, 22, { placeholder = "표시 이름 (예: MT, 1파티, 홍길동)" })
+    pl.label = W.EditBox(side, 170, 22, { placeholder = "표시 이름 (예: MT, 1파티)" })
     pl.label:SetPoint("TOPLEFT", 0, -28)
     local sb = {
         { "배치 추가 (중앙)", function() if page.bossKey then BP:AddToken(page.bossKey, page.phase, pl.kind:GetValue(), pl.label:GetText(), 0.5, 0.5) end end },
@@ -273,7 +273,8 @@ local function build(page)
     pt.upcoming = W.Paragraph(pt, "", 640, 12)
     pt.upcoming:SetPoint("TOPLEFT", 0, -362)
     local _, ft = UI.BottomBar(pt, 0)
-    ft:Add(W.Button(ft.parent, "타이머 시작", 86, 24, function() if page.bossKey then BP:StartTimer(page.bossKey) end end, { kind = "primary" }))
+    ft:Add(W.Button(ft.parent, "타이머 시작", 86, 24, function() if page.bossKey then BP:StartTimer(page.bossKey) end end, { kind = "primary",
+        tooltip = { "수동으로 진행합니다. 전투 시작 이벤트가 오면 자동으로 시작합니다.", "단계/생존기 알림은 내 화면에만 표시됩니다." } }))
     ft:Add(W.Button(ft.parent, "다음 단계", 76, 24, function() BP:NextPhase() end))
     ft:Add(W.Button(ft.parent, "정지", 50, 24, function() BP:StopTimer() end))
     ft:Add(W.Button(ft.parent, "초기화", 60, 24, function() BP:ResetTimer() end))
@@ -290,8 +291,6 @@ local function build(page)
         local e = pt.list:GetSelected()
         if e and page.bossKey then BP:RemoveTimelineEvent(page.bossKey, e.index) end
     end, { perm = "raid.plan" }))
-    local tnote = W.Label(ft.parent, "수동 진행 · 전투 시작 이벤트 시 자동 시작 · 알림은 화면에만 표시", 11, "muted")
-    ft:Add(tnote, 300)
 
     -- 진행
     local pg = panel("progress")
@@ -357,7 +356,7 @@ local function refresh(page)
     if not page.bossKey and bosses[1] then page.bossKey = P:GetCurrentBoss() or bosses[1].key end
     page.bossList:SetData(bosses, true)
     local plan = page.bossKey and BP:Get(page.bossKey)
-    page.bossTitle:SetText(plan and (plan.name .. (plan.verified == false and "  |cff9e9a8f(미확인)|r" or "")) or "보스를 선택하세요")
+    page.bossTitle:SetText(plan and (plan.name .. (plan.verified == false and "  |cff9d9d9d(미확인)|r" or "")) or "보스를 선택하세요")
     if not plan then return end
     if page.tab == "plan" then
         page.panels.plan.text:SetText(planText(plan))

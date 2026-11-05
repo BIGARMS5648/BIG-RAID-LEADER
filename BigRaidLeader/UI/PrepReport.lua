@@ -9,10 +9,10 @@ local function check(v) return v and T.Color("green", "O") or T.Color("red", "X"
 
 function PR:Create()
     if self.frame then return self.frame end
-    local f = W.Panel(UIParent, T.colors.bg, T.colors.border)
+    local f = W.Panel(UIParent, nil, nil, "dialog")
     _G.BigRaidLeaderPrepReport = f
     table.insert(UISpecialFrames, "BigRaidLeaderPrepReport")
-    f:SetSize(600, 460)
+    f:SetSize(600, 500)
     f:SetPoint("CENTER", 0, 60)
     f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
@@ -23,14 +23,14 @@ function PR:Create()
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetClampedToScreen(true)
     f:Hide()
-    f.title = W.Label(f, "전투 준비 - 도핑 점검", 15, "goldBright")
-    f.title:SetPoint("TOPLEFT", 14, -12)
-    local close = W.Button(f, "X", 22, 20, function() f:Hide() end, { kind = "subtle" })
-    close:SetPoint("TOPRIGHT", -8, -8)
-    f.summary = W.Paragraph(f, "", 570, 12)
-    f.summary:SetPoint("TOPLEFT", 14, -38)
+    f.title = W.Label(f, "전투 준비 - 도핑 점검", 15, "gold")
+    f.title:SetPoint("TOPLEFT", 18, -17)
+    local close = W.CloseButton(f, function() f:Hide() end, 30)
+    close:SetPoint("TOPRIGHT", -5, -5)
+    f.summary = W.Paragraph(f, "", 564, 12)
+    f.summary:SetPoint("TOPLEFT", 18, -42)
     f.onlyMissing = W.CheckBox(f, "누락/확인 불가만 보기", function() PR:Render() end)
-    f.onlyMissing:SetPoint("TOPRIGHT", -170, -14)
+    f.onlyMissing:SetPoint("TOPRIGHT", -180, -19)
     f.onlyMissing:SetChecked(true)
     f.list = W.List(f, {
         columns = {
@@ -59,11 +59,11 @@ function PR:Create()
             return r.member.short, lines
         end,
     })
-    f.list:SetPoint("TOPLEFT", 14, -112)
-    f.list:SetPoint("BOTTOMRIGHT", -14, 48)
+    f.list:SetPoint("TOPLEFT", 16, -118)
+    f.list:SetPoint("BOTTOMRIGHT", -16, 46)
     local bar = CreateFrame("Frame", nil, f)
-    bar:SetPoint("BOTTOMLEFT", 14, 12)
-    bar:SetSize(570, 26)
+    bar:SetPoint("BOTTOMLEFT", 18, 15)
+    bar:SetSize(564, 26)
     local fl = W.Flow(bar, 0, 1, 6)
     fl:Add(W.Button(bar, "다시 점검", 80, 24, function() BRL.CombatPrep:Run() end, { kind = "primary" }))
     fl:Add(W.Button(bar, "공격대에 알리기", 110, 24, function()
@@ -126,6 +126,9 @@ function PR:Render()
     if #bm > 0 then lines[#lines + 1] = T.Color("yellow", "필수 버프 누락: " .. table.concat(bm, ", ")) end
     lines[#lines + 1] = T.Color("muted", "점검 시각 " .. BRL.Util.FormatClock(res.at) .. " · 물약/주문서 등 사용형 소모품은 점검할 수 없습니다.")
     f.summary:SetText(table.concat(lines, "\n"))
+    -- 요약 줄 수에 맞춰 목록 시작 위치를 내림 (요약과 목록 겹침 방지)
+    local sh = f.summary:GetStringHeight() or 60
+    f.list:SetPoint("TOPLEFT", 16, -math.floor(42 + math.max(sh, 30) + 10))
     W.RefreshPermissionButtons()
 end
 

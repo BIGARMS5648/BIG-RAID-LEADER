@@ -19,7 +19,7 @@ local TILES = {
     { key = "unpaid", label = "미지급금", page = "settlement" },
     { key = "settle", label = "정산 진행 상태", page = "settlement" },
     { key = "balance", label = "장부 잔액", page = "ledger" },
-    { key = "trades", label = "확인 필요 거래", page = "trades" },
+    { key = "trades", label = "거래 확인불가/미분류", page = "trades" },
     { key = "groups", label = "파티별 인원", page = "groups" },
 }
 
@@ -42,19 +42,19 @@ local function build(page)
     local sec = W.Section(page, "빠른 실행")
     sec:SetPoint("TOPLEFT", 4, -y)
     local flow = W.Flow(page, 4, y + 22, 6)
-    flow:Add(W.Button(page, "준비 확인", 96, 26, function() BRL.Command:ReadyCheck() end, { perm = "raid.command" }))
-    flow:Add(W.Button(page, "풀링 " .. BRL.acct.command.pullSeconds .. "초", 96, 26, function() BRL.UIActions.PullWithCheck() end, { perm = "raid.command",
+    flow:Add(W.Button(page, "준비 확인", 80, 26, function() BRL.Command:ReadyCheck() end, { perm = "raid.command" }))
+    flow:Add(W.Button(page, "풀링 " .. BRL.acct.command.pullSeconds .. "초", 80, 26, function() BRL.UIActions.PullWithCheck() end, { perm = "raid.command",
         tooltip = { "풀링 판정이 '보류'면 사유를 보여주고 확인 후 시작합니다." } }))
-    flow:Add(W.Button(page, "풀링 취소", 86, 26, function() BRL.Command:CancelPull() end, { perm = "raid.command" }))
-    flow:Add(W.Button(page, "전투 준비", 86, 26, function() BRL.CombatPrep:Run() end, { kind = "primary", tooltip = { "버프를 다시 읽어 음식/영약/비약/필수 버프가 없는 공대원을 알려줍니다." } }))
-    flow:Add(W.Button(page, "다음 경매 시작", 110, 26, function()
+    flow:Add(W.Button(page, "풀링 취소", 80, 26, function() BRL.Command:CancelPull() end, { perm = "raid.command" }))
+    flow:Add(W.Button(page, "전투 준비", 80, 26, function() BRL.CombatPrep:Run() end, { kind = "primary", tooltip = { "버프를 다시 읽어 음식/영약/비약/필수 버프가 없는 공대원을 알려줍니다." } }))
+    flow:Add(W.Button(page, "다음 경매 시작", 104, 26, function()
         local ok, err = BRL.Auctions:StartNext()
         if not ok then BRL:Print(tostring(err)) end
     end, { perm = "finance.edit", kind = "primary" }))
-    flow:Add(W.Button(page, "지난 세션", 86, 26, function() BRL.UIActions.SessionHistory() end,
+    flow:Add(W.Button(page, "지난 세션", 80, 26, function() BRL.UIActions.SessionHistory() end,
         { tooltip = { "지난 공격대 세션 목록 (경매 총액 · 수금 · 정산 상태)", "선택하면 그 세션으로 전환합니다." } }))
-    flow:Add(W.Button(page, "징표 바", 76, 26, function() BRL.MarkerBar:Toggle() end))
-    flow:Add(W.Button(page, "새 세션", 76, 26, function() UI:PromptNewSession() end, { perm = "finance.edit" }))
+    flow:Add(W.Button(page, "징표 바", 68, 26, function() BRL.MarkerBar:Toggle() end))
+    flow:Add(W.Button(page, "새 세션", 68, 26, function() UI:PromptNewSession() end, { perm = "finance.edit" }))
     flow:Add(W.Button(page, "풀링 판정", 80, 26, function() BRL.UIActions.ShowPullCheck() end))
     flow:Add(W.Button(page, "HUD", 50, 26, function() BRL.HUD:Toggle() end, { tooltip = { "메인 창 없이 경매/거래/풀링 판정/도핑을 보여주는 작은 창 (/brl hud)" } }))
 
@@ -121,7 +121,7 @@ local function refresh(page)
     end
     local unverified = #BRL.TradeJournal:Query({ group = "unverified" })
     local unclassified = #BRL.TradeJournal:Query({ group = "unclassified" })
-    setTile(page, "trades", unverified .. " 확인불가 / " .. unclassified .. " 미분류", (unverified + unclassified) > 0 and "yellow" or "green")
+    setTile(page, "trades", unverified .. " / " .. unclassified, (unverified + unclassified) > 0 and "yellow" or "green")
     local gparts = {}
     for g = 1, 8 do if (counts.byGroup[g] or 0) > 0 then gparts[#gparts + 1] = counts.byGroup[g] end end
     setTile(page, "groups", #gparts > 0 and table.concat(gparts, " · ") or "-")
