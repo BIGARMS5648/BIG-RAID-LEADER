@@ -114,15 +114,19 @@ function HUD:Create()
     local p = cfg().point
     if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4]) else f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -240, -220) end
     f:Hide()
-    f.title = W.Label(f, "BIG RAID LEADER", 11, "gold")
-    f.title:SetPoint("TOPLEFT", 8, -8)
-    local close = W.CloseButton(f, function() self:Hide() end, 22)
-    close:SetPoint("TOPRIGHT", -1, -1)
-    f.cmdToggle = W.Button(f, "지휘 ▾", 52, 16, function()
+    local logo = f:CreateTexture(nil, "ARTWORK")
+    logo:SetTexture(T.TEX.logo)
+    logo:SetSize(44, 11)
+    logo:SetPoint("TOPLEFT", 7, -8)
+    f.title = W.Label(f, "BIG RAID LEADER", 11, "goldBright", nil, true)
+    f.title:SetPoint("LEFT", logo, "RIGHT", 5, 0)
+    local close = W.CloseButton(f, function() self:Hide() end, 20)
+    close:SetPoint("TOPRIGHT", -3, -3)
+    f.cmdToggle = W.Button(f, "지휘 ▼", 52, 16, function()
         cfg().commands = cfg().commands == false
         self:Layout()
     end, { kind = "subtle", size = 10, tooltip = { "지휘 명령 버튼 펼치기/접기" } })
-    f.cmdToggle:SetPoint("RIGHT", close, "LEFT", -2, 0)
+    f.cmdToggle:SetPoint("RIGHT", close, "LEFT", -4, 0)
     f.body = W.Paragraph(f, "", BW * 4 + GAP * 3, 11)
     f.body:SetPoint("TOPLEFT", 6, -25)
 
@@ -183,7 +187,7 @@ function HUD:Layout()
     f.auctionRow:SetPoint("TOPLEFT", 6, -y)
     y = y + BH + GAP
     local showCmd = cfg().commands ~= false
-    f.cmdToggle:SetText(showCmd and "지휘 ▾" or "지휘 ▸")
+    f.cmdToggle:SetText(showCmd and "지휘 ▼" or "지휘 ▶")
     for _, row in ipairs(f.cmdRows) do
         if showCmd then
             row:ClearAllPoints()

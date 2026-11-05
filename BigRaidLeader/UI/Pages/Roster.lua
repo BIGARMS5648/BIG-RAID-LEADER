@@ -27,14 +27,14 @@ local function build(page)
         columns = {
             { title = "파티", width = 40, align = "CENTER", render = function(m) return m.subgroup or "-" end, sort = true, key = "group" },
             { title = "캐릭터", width = 150, render = function(m)
-                local mark = m.isLeader and "|cffffd100[공대장]|r " or (m.isAssistant and "|cff69ccf0[부공대장]|r " or "")
+                local mark = m.isLeader and "|cffffffff[공대장]|r " or (m.isAssistant and "|cff73b8ff[부공대장]|r " or "")
                 return mark .. BRL.Data.ColorName(m.short, m.class)
             end, sort = true, key = "name" },
             { title = "직업", width = 80, render = function(m) return BRL.Data.ClassName(m.class) end, sort = true, key = "class" },
             { title = "레벨", width = 40, align = "CENTER", render = function(m) return m.level or "-" end },
             { title = "역할", width = 90, render = function(m)
                 local assigned = BRL.Roles:IsRoleAssigned(m.key)
-                return BRL.Label("CR_", m.role or "NONE") .. (assigned and "" or " |cff9d9d9d(추정)|r")
+                return BRL.Label("CR_", m.role or "NONE") .. (assigned and "" or " |cff8f8f99(추정)|r")
             end, sort = true, key = "role" },
             { title = "상태", width = 140, render = function(m)
                 local s = {}

@@ -212,6 +212,23 @@ function L.Overlaps(root, opts)
             end
         end
     end
+    -- 배경 있는 상자(패널) 밖으로 삐져나온 자식 위젯
+    for _, it in ipairs(items) do
+        if it.kind ~= "panel" then
+            local p = it.f.__parent
+            while p and p ~= root do
+                if classify(p) == "panel" then
+                    local pr = L.Rect(p)
+                    local r = it.r
+                    if r.l < pr.l - 1 or r.r > pr.r + 1 or r.t < pr.t - 1 or r.b > pr.b + 1 then
+                        out[#out + 1] = { a = it, b = { f = p, r = pr, kind = "panel", label = "부모 상자 밖" }, ix = 0, iy = 0 }
+                    end
+                    break
+                end
+                p = p.__parent
+            end
+        end
+    end
     -- 부모 영역 밖으로 나간 위젯 (잘림)
     local clipped = {}
     if opts.bounds then

@@ -81,8 +81,8 @@ function MB:Create()
     wclear:RegisterForClicks("AnyUp", "AnyDown")
     wclear:SetAttribute("type", "worldmarker")
     wclear:SetAttribute("action", "clear") -- marker 미지정 = 전체 해제
-    local close = W.CloseButton(f, function() MB:Hide() end, 22)
-    close:SetPoint("TOPRIGHT", -1, -1)
+    local close = W.CloseButton(f, function() MB:Hide() end, 18)
+    close:SetPoint("TOPRIGHT", -3, -3)
     self.frame = f
     return f
 end

@@ -376,12 +376,34 @@ function frameMethods:ClearAllPoints() self.__points = {} end
 function frameMethods:SetAllPoints(rel)
     self.__points = { { point = "TOPLEFT", rel = rel, relPoint = "TOPLEFT", x = 0, y = 0 }, { point = "BOTTOMRIGHT", rel = rel, relPoint = "BOTTOMRIGHT", x = 0, y = 0 } }
 end
-function frameMethods:SetFont(_, size) self.__fontSize = size end
+function frameMethods:SetFont(path, size) self.__fontPath = path self.__fontSize = size return true end
 function frameMethods:SetFontObject(o) self.__fontObject = o end
 function frameMethods:SetJustifyH(j) self.__justifyH = j end
 function frameMethods:SetWordWrap(v) self.__wordWrap = v end
-function frameMethods:GetWidth() return self.__width end
-function frameMethods:GetHeight() return self.__height end
+-- 글자 크기 측정: 레이아웃 검사기(Tests/layout.lua)와 같은 근사식을 써서 화면 코드의 높이 계산과 검사 결과가 일치하게 한다
+local measure
+local function layoutLib()
+    if not measure then measure = dofile("Tests/layout.lua") end
+    return measure
+end
+-- 앵커 두 개 이상으로 크기가 정해지는 프레임은 실제 배치 크기를 돌려줌 (게임과 같게)
+local function anchoredSize(self)
+    if self.__kind == "FontString" or #self.__points < 2 then return nil end
+    local L = layoutLib()
+    L.Reset()
+    local r = L.Rect(self)
+    return r.r - r.l, r.b - r.t
+end
+function frameMethods:GetWidth()
+    if self.__explicitW then return self.__width end
+    local w = anchoredSize(self)
+    return w or self.__width
+end
+function frameMethods:GetHeight()
+    if self.__explicitH then return self.__height end
+    local _, h = anchoredSize(self)
+    return h or self.__height
+end
 function frameMethods:GetSize() return self.__width, self.__height end
 function frameMethods:GetLeft() return 0 end
 function frameMethods:GetRight() return self.__width end
@@ -395,12 +417,6 @@ function frameMethods:GetNumPoints() return 1 end
 function frameMethods:SetText(t) self.__text = t == nil and "" or tostring(t) end
 function frameMethods:GetText() return self.__text end
 function frameMethods:SetFormattedText(fmt, ...) self.__text = string.format(fmt, ...) end
--- 글자 크기 측정: 레이아웃 검사기(Tests/layout.lua)와 같은 근사식을 써서 화면 코드의 높이 계산과 검사 결과가 일치하게 한다
-local measure
-local function layoutLib()
-    if not measure then measure = dofile("Tests/layout.lua") end
-    return measure
-end
 function frameMethods:GetStringWidth() return layoutLib().TextWidth(self.__text, self.__fontSize or 12) end
 function frameMethods:GetUnboundedStringWidth() return self:GetStringWidth() end
 function frameMethods:GetStringHeight()
@@ -468,8 +484,15 @@ function frameMethods:GetFrameStrata() return "MEDIUM" end
 function frameMethods:IsProtected() return false end
 function frameMethods:IsForbidden() return false end
 function frameMethods:CanChangeProtectedState() return not M.combat end
-function frameMethods:CreateFontString(name) return newObject("FontString", name, self) end
-function frameMethods:CreateTexture(name) return newObject("Texture", name, self) end
+function frameMethods:CreateFontString(name, layer) local o = newObject("FontString", name, self) o.__layer = layer or "ARTWORK" return o end
+function frameMethods:CreateTexture(name, layer) local o = newObject("Texture", name, self) o.__layer = layer or "ARTWORK" return o end
+-- 그리기 정보 기록 (실제 레이아웃 렌더링 미리보기용)
+function frameMethods:SetVertexColor(r, g, b, a) self.__vc = { r, g, b, a or 1 } end
+function frameMethods:SetColorTexture(r, g, b, a) self.__texture = "Interface\\Buttons\\WHITE8X8" self.__vc = { r, g, b, a or 1 } end
+function frameMethods:SetTextColor(r, g, b, a) self.__color = { r, g, b, a or 1 } end
+function frameMethods:LockHighlight() self.__locked = true end
+function frameMethods:UnlockHighlight() self.__locked = false end
+function frameMethods:SetTexCoord(...) self.__texcoord = { ... } end
 function frameMethods:CreateLine(name) return newObject("Line", name, self) end
 function frameMethods:CreateAnimationGroup() return newObject("AnimationGroup", nil, self) end
 function frameMethods:Click(button)
@@ -481,9 +504,9 @@ _G.CreateFrame = function(kind, name, parent, template)
     local f = newObject(kind, name, parent)
     f.__template = template
     if template and template:find("BackdropTemplate") then
-        f.SetBackdrop = noop
-        f.SetBackdropColor = noop
-        f.SetBackdropBorderColor = noop
+        f.SetBackdrop = function(self, bd) self.__backdrop = bd end
+        f.SetBackdropColor = function(self, r, g, b, a) self.__bg = { r, g, b, a or 1 } end
+        f.SetBackdropBorderColor = function(self, r, g, b, a) self.__bd = { r, g, b, a or 1 } end
     end
     return f
 end

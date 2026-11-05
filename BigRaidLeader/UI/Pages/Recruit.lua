@@ -30,7 +30,7 @@ local function buildRecruit(page, host)
             function(v) return R:SaveTemplate(v.name) end)
     end, { perm = "raid.plan" }))
 
-    local s1 = W.Section(host, "모집 문구")
+    local s1 = W.Section(host, "모집 문구", 420)
     s1:SetPoint("TOPLEFT", 4, -62)
     page.message = W.TextArea(host, 420, 60, { onCommit = function(text) R:SetField("message", (text:gsub("\n", " "))) end })
     page.message:SetPoint("TOPLEFT", 4, -84)
@@ -40,7 +40,7 @@ local function buildRecruit(page, host)
     page.preview:SetPoint("TOPLEFT", 4, -166)
     T.SetTextColor(page.preview, "yellow")
 
-    local s2 = W.Section(host, "역할별 / 직업별 모집 정원")
+    local s2 = W.Section(host, "역할별 / 직업별 모집 정원", 420)
     s2:SetPoint("TOPLEFT", 4, -212)
     page.roleEdits = {}
     -- 역할 이름 길이가 달라서(원거리 딜러 등) 실제 글자 폭을 재서 차례로 배치
@@ -60,12 +60,12 @@ local function buildRecruit(page, host)
         local row = math.floor((i - 1) / 5)
         local lbl = W.Label(host, BRL.Data.ColorName(BRL.Data.ClassName(class), class), 12)
         lbl:SetPoint("TOPLEFT", 4 + col * 84, -268 - row * 28)
-        local eb = W.EditBox(host, 30, 22, { numeric = true, onCommit = function(text) R:SetQuota("class", class, text) end })
-        eb:SetPoint("TOPLEFT", 54 + col * 84, -264 - row * 28)
+        local eb = W.EditBox(host, 26, 22, { numeric = true, onCommit = function(text) R:SetQuota("class", class, text) end })
+        eb:SetPoint("TOPLEFT", 60 + col * 84, -264 - row * 28)
         page.classEdits[class] = eb
     end
 
-    local s3 = W.Section(host, "전송 (버튼 클릭 시에만 전송)")
+    local s3 = W.Section(host, "전송 (버튼 클릭 시에만 전송)", 420)
     s3:SetPoint("TOPLEFT", 4, -330)
     local f2 = W.Flow(host, 4, 354, 6)
     page.channel = f2:Add(W.Dropdown(host, 150, channelItems, nil, { placeholder = "채널 선택" }))
@@ -96,7 +96,7 @@ local function buildRecruit(page, host)
     s5:SetPoint("TOPLEFT", 440, -170)
     page.list = W.List(host, {
         columns = {
-            { title = "이름", width = 110, render = function(a) return BRL.Data.ColorName(a.name, a.class) .. (a.inGroup and " |cff9d9d9d(공대원)|r" or "") end },
+            { title = "이름", width = 110, render = function(a) return BRL.Data.ColorName(a.name, a.class) .. (a.inGroup and " |cff8f8f99(공대원)|r" or "") end },
             { title = "직업/역할", width = 90, render = function(a) return (a.class and BRL.Data.ClassName(a.class) or "?") .. "/" .. (a.role and BRL.Label("CR_", a.role) or "?") end },
             { title = "상태", width = 60, render = function(a)
                 local labels = { pending = "대기", approved = "승인", rejected = "거절", hold = "보류" }
@@ -270,7 +270,7 @@ local function buildAnalysis(page, host)
     f:Add(W.Button(f.parent, "사용 불가 직업", 100, 24, function()
         local items = {}
         for _, c in ipairs(BRL.Data.ClassOrder) do
-            items[#items + 1] = { value = c, text = (Comp:IsExcluded(c) and "|cffff2020[제외]|r " or "") .. BRL.Data.ColorName(BRL.Data.ClassName(c), c) }
+            items[#items + 1] = { value = c, text = (Comp:IsExcluded(c) and "|cffff6161[제외]|r " or "") .. BRL.Data.ColorName(BRL.Data.ClassName(c), c) }
         end
         D.Select("추천에서 제외할 직업 (선택 시 전환)", items, function(c) Comp:SetExcluded(c, not Comp:IsExcluded(c)) end,
             { description = "진영/서버 사정으로 모집할 수 없는 직업을 제외하면 그 직업만 제공하는 시너지는 '직업 제한'으로 표시됩니다." })

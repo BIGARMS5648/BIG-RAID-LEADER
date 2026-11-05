@@ -37,7 +37,7 @@ local function build(page)
 
     -- 일반 / 거래
     local pg = panel("general")
-    local s1 = W.Section(pg, "거래 자동 기록")
+    local s1 = W.Section(pg, "거래 자동 기록", 430)
     s1:SetPoint("TOPLEFT", 4, 0)
     check(pg, 8, 24, "거래 자동 기록", "trade.autoRecord", { "거래 창 이벤트를 추적해 완료가 확인된 거래를 기록합니다." })
     check(pg, 8, 48, "거래 완료 화면 알림", "trade.notifyScreen")
@@ -45,7 +45,7 @@ local function build(page)
     check(pg, 8, 96, "거래 직후 목적 분류 창", "trade.completionPopup")
     check(pg, 8, 120, "경매/분배 연결 제안 (자동 확정 없음)", "trade.suggestLinks")
     check(pg, 230, 24, "거래 창 옆 정보 패널", "trade.assistPanel", { "거래 상대에게서 받을 낙찰금/줄 분배금과 거래 창 금액을 비교해 보여줍니다.", "[분배금 입력]은 골드 칸만 채우며 수락은 직접 해야 합니다." })
-    local s2 = W.Section(pg, "인터페이스")
+    local s2 = W.Section(pg, "인터페이스", 430)
     s2:SetPoint("TOPLEFT", 4, -180)
     check(pg, 8, 204, "미니맵 버튼 숨기기", "minimap.hide", nil, function() BRL.Minimap:UpdateVisibility() end)
     check(pg, 230, 204, "공대장 HUD 표시", "hud.show", { "메인 창 없이 경매/카운트, 거래 상대, 풀링 판정, 도핑, 미지급을 보여주는 작은 창", "/brl hud" },
@@ -64,7 +64,7 @@ local function build(page)
         BRL.char.ui.point = nil
         if UI.frame then UI.frame:ClearAllPoints() UI.frame:SetPoint("CENTER") end
     end):SetPoint("TOPLEFT", 220, -258)
-    local s4 = W.Section(pg, "버프 / 준비 확인")
+    local s4 = W.Section(pg, "버프 / 준비 확인", 430)
     s4:SetPoint("TOPLEFT", 4, -296)
     check(pg, 8, 320, "야영지 효과가 대응 직업 버프를 대체한 것으로 인정", "buffs.campReplacesClassBuff")
     W.Button(pg, "버프 키워드 보완", 120, 22, function()
@@ -107,7 +107,7 @@ local function build(page)
 
     -- 경매 / 정산
     local pa = panel("auction")
-    local a1 = W.Section(pa, "경매 기본값")
+    local a1 = W.Section(pa, "경매 기본값", 430)
     a1:SetPoint("TOPLEFT", 4, 0)
     local function moneyRow(y, label, path)
         local l = W.Label(pa, label, 12, "muted")

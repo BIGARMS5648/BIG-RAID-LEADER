@@ -28,9 +28,9 @@ local function build(page)
         columns = {
             { title = "보스", width = 0, render = function(b)
                 local prog = P:Boss(b.key)
-                local mark = prog.kills > 0 and "|cff20ff20✔|r " or ""
-                local cur = P:GetCurrentBoss() == b.key and "|cffffd100▶|r " or ""
-                return cur .. mark .. b.name .. (b.verified == false and " |cff9d9d9d?|r" or "")
+                local mark = prog.kills > 0 and "|cff61db80✔|r " or ""
+                local cur = P:GetCurrentBoss() == b.key and "|cffffffff▶|r " or ""
+                return cur .. mark .. b.name .. (b.verified == false and " |cff8f8f99?|r" or "")
             end },
             { title = "시도", width = 34, align = "CENTER", render = function(b) local p = P:Boss(b.key) return p.attempts > 0 and p.attempts or "" end },
         },
@@ -150,7 +150,7 @@ local function build(page)
         return items
     end, function(v) page.phase = v UI:RequestRefresh() end)
     pl.phaseDrop:SetPoint("TOPLEFT", 0, 0)
-    local canvas = W.Panel(pl, { 0.08, 0.1, 0.08, 1 }, T.colors.border)
+    local canvas = W.Panel(pl, { 0.04, 0.04, 0.047, 1 }, T.colors.borderDim)
     canvas:SetPoint("TOPLEFT", 0, -28)
     canvas:SetSize(460, 400)
     pl.canvas = canvas
@@ -356,7 +356,7 @@ local function refresh(page)
     if not page.bossKey and bosses[1] then page.bossKey = P:GetCurrentBoss() or bosses[1].key end
     page.bossList:SetData(bosses, true)
     local plan = page.bossKey and BP:Get(page.bossKey)
-    page.bossTitle:SetText(plan and (plan.name .. (plan.verified == false and "  |cff9d9d9d(미확인)|r" or "")) or "보스를 선택하세요")
+    page.bossTitle:SetText(plan and (plan.name .. (plan.verified == false and "  |cff8f8f99(미확인)|r" or "")) or "보스를 선택하세요")
     if not plan then return end
     if page.tab == "plan" then
         page.panels.plan.text:SetText(planText(plan))

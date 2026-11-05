@@ -88,7 +88,7 @@ local function build(page)
             items[#items + 1] = { value = "payout", text = "분배 지급으로 연결" }
             items[#items + 1] = { value = "refund", text = "경매금 환불로 연결" }
         end
-        if tr.suggestion then items[#items + 1] = { value = "suggest", text = "|cffffd100연결 제안 승인|r" } end
+        if tr.suggestion then items[#items + 1] = { value = "suggest", text = "|cffffffff연결 제안 승인|r" } end
         if tr.status == "unverified" or tr.status == "cancelled" then items[#items + 1] = { value = "confirm", text = "수동 확인 (완료로 인정)" } end
         if tr.status == "unverified" then items[#items + 1] = { value = "markcancel", text = "취소로 표시" } end
         items[#items + 1] = { value = "adjust", text = "금액 정정 (수동 조정)" }

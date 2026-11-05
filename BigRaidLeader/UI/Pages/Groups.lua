@@ -11,8 +11,8 @@ local function slotText(key)
     local class = m and m.class
     local role = BRL.Roles:GetMemberRole(key, m)
     local roleTag = role and ({ TANK = "탱", HEALER = "힐", MELEE = "근", RANGED = "원" })[role] or "?"
-    local pin = G:IsPinned(key) and "|cffffd100*|r" or ""
-    local offline = m and not m.online and " |cff9d9d9d(off)|r" or (not m and " |cff9d9d9d(부재)|r" or "")
+    local pin = G:IsPinned(key) and "|cffffffff*|r" or ""
+    local offline = m and not m.online and " |cff8f8f99(off)|r" or (not m and " |cff8f8f99(부재)|r" or "")
     return pin .. "[" .. roleTag .. "] " .. BRL.Data.ColorName(API.ShortName(key), class) .. offline
 end
 
@@ -20,7 +20,7 @@ local function build(page)
     UI:PageHeader(page, L.MENU_GROUPS, "클릭으로 선택 후 다른 자리 클릭 = 이동/교체 · 드래그 앤 드롭 지원")
     page.selectedKey = nil
     page.boxes = {}
-    local boxW, boxH, slotH = 212, 124, 22
+    local boxW, boxH, slotH = 212, 132, 22
     for g = 1, 8 do
         local col = (g - 1) % 4
         local row = math.floor((g - 1) / 4)

@@ -14,7 +14,7 @@ local function build(page)
     page.plan = flow:Add(W.Dropdown(page, 220, UI.PlanItems, function(v) page.planKey = v UI:RequestRefresh() end))
     page.plan:SetValue("default", true)
 
-    local s1 = W.Section(page, "전술 임무")
+    local s1 = W.Section(page, "전술 임무", 476)
     s1:SetPoint("TOPLEFT", 4, -62)
     page.duties = W.List(page, {
         columns = {

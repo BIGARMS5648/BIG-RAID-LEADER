@@ -1,7 +1,6 @@
--- BIG RAID LEADER - UI 위젯 (포에버 순정 인터페이스 스타일)
--- 버튼/닫기/체크/입력칸은 게임 기본 템플릿(UIPanelButtonTemplate, UIPanelCloseButton, InputBoxTemplate)과
--- 기본 텍스처를 쓰고, 템플릿이 없는 클라이언트에서는 같은 텍스처로 직접 그린다.
--- 드롭다운/가상 스크롤 목록은 보안 오염(taint)을 피하려고 자체 구현하되 기본 창 모양을 따른다.
+-- BIG RAID LEADER - UI 위젯 (모던 모노크롬 스타일)
+-- 버튼/입력/체크/드롭다운/가상 스크롤 목록을 1px 선의 평평한 모양으로 직접 그린다.
+-- Blizzard 템플릿에 의존하지 않아 클라이언트 버전과 무관하게 같은 모양이고, 보안 오염(taint)도 없다.
 local _, BRL = ...
 local T = BRL.Theme
 local U = BRL.Util
@@ -16,21 +15,10 @@ local function cf(kind, parent, template, name)
     return CreateFrame(kind, name, parent, template)
 end
 
--- 템플릿으로 만들어 보고, 없으면 nil
-local function tryTemplate(kind, parent, template)
-    local ok, f = pcall(CreateFrame, kind, nil, parent, template)
-    if ok and f then return f end
-    return nil
-end
-
-local function setTex(t, path, blend)
-    t:SetTexture(path)
-    if blend and t.SetBlendMode then t:SetBlendMode(blend) end
-    return t
-end
+local C = T.colors
 
 ---------------------------------------------------------------------------
--- 툴팁 (게임 기본: 제목 금색, 내용 흰색)
+-- 툴팁
 ---------------------------------------------------------------------------
 function W.SetTooltip(frame, title, lines)
     frame.tooltipTitle, frame.tooltipLines = title, lines
@@ -39,11 +27,11 @@ function W.SetTooltip(frame, title, lines)
         if type(t) == "function" then t = t(self) end
         if not t then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(t, 1, 0.82, 0)
+        GameTooltip:SetText(t, 1, 1, 1)
         local l = self.tooltipLines
         if type(l) == "function" then l = l(self) end
         if type(l) == "string" then l = { l } end
-        for _, line in ipairs(l or {}) do GameTooltip:AddLine(line, 1, 1, 1, true) end
+        for _, line in ipairs(l or {}) do GameTooltip:AddLine(line, 0.78, 0.78, 0.82, true) end
         GameTooltip:Show()
     end)
     frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
@@ -52,16 +40,16 @@ end
 ---------------------------------------------------------------------------
 -- 기본 요소
 ---------------------------------------------------------------------------
--- style: "box"(기본, 창 안 구획) / "dialog" / "panel" / "tooltip" / "small" / "flat"  (Theme.STYLES)
+-- style: "box"(기본) / "dialog" / "panel" / "tooltip" / "small" / "flat"  (Theme.STYLES)
 function W.Panel(parent, bg, border, style)
     local f = cf("Frame", parent, "BackdropTemplate")
     T.ApplyBackdrop(f, bg, border, style or "box")
     return f
 end
 
-function W.Label(parent, text, size, color, justify)
+function W.Label(parent, text, size, color, justify, bold)
     local fs = parent:CreateFontString(nil, "OVERLAY")
-    T.SetFont(fs, size or 12)
+    T.SetFont(fs, size or 12, nil, bold)
     fs:SetText(text or "")
     T.SetTextColor(fs, color or "text")
     fs:SetJustifyH(justify or "LEFT")
@@ -79,73 +67,58 @@ function W.Paragraph(parent, text, width, size)
     return fs
 end
 
--- 구획 제목: 금색 글자 + 옅은 구분선 (옵션 창 스타일)
-function W.Section(parent, text)
-    local fs = W.Label(parent, text, 13, "gold")
-    local line = parent:CreateTexture(nil, "ARTWORK")
-    line:SetTexture(T.WHITE)
-    line:SetVertexColor(1, 1, 1, 0.18)
+-- 구획 제목: 굵은 흰 글자 + 옅은 구분선. width 를 주면 선 길이를 제한 (두 칸 화면의 왼쪽 칸이 오른쪽 칸을 가로지르지 않게)
+function W.Section(parent, text, width)
+    local fs = W.Label(parent, text, 13, "goldBright", nil, true)
+    local line = T.Solid(parent, "ARTWORK", C.line)
     line:SetHeight(1)
-    line:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -3)
-    line:SetPoint("RIGHT", parent, "RIGHT", -12, 0)
+    line:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -4)
+    if width then line:SetWidth(width) else line:SetPoint("RIGHT", parent, "RIGHT", -12, 0) end
     fs.line = line
-    return fs
-end
-
--- 대화상자 머리 장식 (메인 창 제목)
-function W.DialogHeader(frame, text, size)
-    local hdr = frame:CreateTexture(nil, "ARTWORK")
-    setTex(hdr, T.TEX.dialogHeader)
-    hdr:SetPoint("TOP", 0, 12)
-    local fs = W.Label(frame, text, size or 13, "gold", "CENTER")
-    fs:SetPoint("TOP", hdr, "TOP", 0, -14)
-    local tw = (fs.GetStringWidth and fs:GetStringWidth()) or 100
-    hdr:SetSize(math.max(256, math.floor((tw + 16) * 256 / 120)), 64)
-    fs.header = hdr
     return fs
 end
 
 ---------------------------------------------------------------------------
 -- 버튼
---  normal/primary/danger : 게임 기본 빨간 버튼 (금색 글자, 마우스 올리면 흰색, 비활성 회색)
---  subtle/tab/dropdown   : 얇은 테두리 상자 버튼
---  nav                   : 목록형 메뉴 (옵션 창 분류 목록처럼 푸른 강조 막대)
+--  normal  : 짙은 회색 + 얇은 선            primary : 흰 바탕 + 검은 글자 (로고 반전)
+--  danger  : 짙은 빨강 + 붉은 글자           subtle  : 투명 + 선
+--  dropdown: 입력칸 모양                     tab     : 글자 + 선택 시 밑줄
+--  nav     : 왼쪽 메뉴 (선택 시 왼쪽 흰 막대)
 ---------------------------------------------------------------------------
-local STOCK_KINDS = { normal = true, primary = true, danger = true }
-
--- UIPanelButtonTemplate 이 없을 때: 같은 텍스처로 직접 그림
-local function drawPanelButton(b)
-    local function state(path, setter, blend)
-        b[setter](b, path, blend)
-        local getter = setter:gsub("^Set", "Get")
-        local t = b[getter] and b[getter](b)
-        if t and t.SetTexCoord then t:SetTexCoord(0, 0.625, 0, 0.6875) end
-    end
-    state(T.TEX.panelButtonUp, "SetNormalTexture")
-    state(T.TEX.panelButtonDown, "SetPushedTexture")
-    state(T.TEX.panelButtonDisabled, "SetDisabledTexture")
-    state(T.TEX.panelButtonHighlight, "SetHighlightTexture", "ADD")
-end
+local NONE = { 0, 0, 0, 0 }
+local KIND = {
+    normal = { bg = C.button, bgHover = C.buttonHover, border = C.buttonBorder, borderHover = { 0.5, 0.5, 0.55, 1 }, text = "text", textHover = "goldBright" },
+    primary = { bg = C.primary, bgHover = C.primaryHover, border = { 1, 1, 1, 1 }, borderHover = { 1, 1, 1, 1 }, text = "ink", textHover = "ink" },
+    danger = { bg = C.danger, bgHover = { 0.3, 0.1, 0.1, 1 }, border = C.dangerBorder, borderHover = { 0.8, 0.28, 0.28, 1 }, text = "dangerText", textHover = "goldBright" },
+    subtle = { bg = NONE, bgHover = { 1, 1, 1, 0.06 }, border = { 0.24, 0.24, 0.27, 1 }, borderHover = { 0.5, 0.5, 0.55, 1 }, text = "gold", textHover = "goldBright" },
+    dropdown = { bg = C.input, bgHover = { 0.06, 0.06, 0.07, 1 }, border = C.buttonBorder, borderHover = { 0.5, 0.5, 0.55, 1 }, text = "text", textHover = "goldBright" },
+    tab = { bg = NONE, bgHover = { 1, 1, 1, 0.04 }, border = NONE, borderHover = NONE, text = "muted", textHover = "text",
+        selBg = { 1, 1, 1, 0.05 }, selText = "goldBright" },
+    nav = { bg = NONE, bgHover = { 1, 1, 1, 0.045 }, border = NONE, borderHover = NONE, text = "muted", textHover = "text",
+        selBg = { 1, 1, 1, 0.085 }, selText = "goldBright" },
+}
+local DISABLED = { bg = { 0.085, 0.085, 0.095, 1 }, border = { 0.15, 0.15, 0.17, 1 } }
+W.BUTTON_KINDS = KIND
 
 local function paintButton(b)
     if not b.label then return end
+    local k = KIND[b.kind] or KIND.normal
     local enabled = b:IsEnabled()
-    local color
-    if not enabled then color = "disabled"
-    elseif b.brlSelected then color = b.selectedColor or "text"
-    elseif b.brlHover then color = b.hoverColor or "text"
-    else color = b.normalColor or "gold" end
-    T.SetTextColor(b.label, color)
-    if b.boxStyle then
-        local bg, bd
-        if b.brlSelected then bg, bd = T.colors.primary, T.colors.border
-        elseif b.brlHover and enabled then bg, bd = T.colors.buttonHover, T.colors.border
-        else bg, bd = b.baseColor, T.colors.borderDim end
-        b:SetBackdropColor(bg[1], bg[2], bg[3], bg[4] or 1)
-        b:SetBackdropBorderColor(bd[1], bd[2], bd[3], bd[4] or 1)
+    local bg, bd, tc
+    if not enabled then
+        bg, bd, tc = (b.kind == "tab" or b.kind == "nav") and NONE or DISABLED.bg, (b.kind == "tab" or b.kind == "nav") and NONE or DISABLED.border, "disabled"
+    elseif b.brlSelected and k.selBg then
+        bg, bd, tc = k.selBg, k.border, k.selText
+    elseif b.brlHover then
+        bg, bd, tc = k.bgHover, k.borderHover, k.textHover
+    else
+        bg, bd, tc = k.bg, k.border, k.text
     end
-    if b.kind == "nav" then
-        if b.brlSelected then b:LockHighlight() else b:UnlockHighlight() end
+    b:SetBackdropColor(bg[1], bg[2], bg[3], bg[4] or 1)
+    b:SetBackdropBorderColor(bd[1], bd[2], bd[3], bd[4] or 1)
+    T.SetTextColor(b.label, tc)
+    if b.accent then
+        if b.brlSelected then b.accent:Show() else b.accent:Hide() end
     end
 end
 W.PaintButton = paintButton
@@ -158,35 +131,29 @@ end
 
 function W.Button(parent, text, width, height, onClick, opts)
     opts = opts or {}
-    local kind = opts.kind or "normal"
-    local b
-    if STOCK_KINDS[kind] then
-        b = tryTemplate("Button", parent, "UIPanelButtonTemplate")
-        if not b then
-            b = cf("Button", parent)
-            drawPanelButton(b)
-        end
-    elseif kind == "nav" then
-        b = cf("Button", parent)
-        local hl = b:CreateTexture(nil, "HIGHLIGHT")
-        setTex(hl, T.TEX.navHighlight, "ADD")
-        hl:SetVertexColor(0.196, 0.388, 0.8)
-        hl:SetAllPoints()
-        b:SetHighlightTexture(hl)
-        b.normalColor, b.hoverColor, b.selectedColor = "gold", "gold", "text"
-    else
-        b = cf("Button", parent, "BackdropTemplate")
-        b.boxStyle = "small"
-        b.baseColor = kind == "dropdown" and T.colors.input or T.colors.button
-        T.ApplyBackdrop(b, b.baseColor, T.colors.borderDim, "small")
-        if kind == "dropdown" then b.normalColor, b.hoverColor = "text", "text" end
-    end
+    local kind = KIND[opts.kind or "normal"] and (opts.kind or "normal") or "normal"
+    local b = cf("Button", parent, "BackdropTemplate")
+    T.ApplyBackdrop(b, KIND[kind].bg, KIND[kind].border, "small")
     b.kind = kind
     b:SetSize(width or 90, height or 22)
-    local fs = W.Label(b, text, opts.size or 12, b.normalColor or "gold", kind == "nav" and "LEFT" or "CENTER")
-    fs:SetPoint("LEFT", kind == "nav" and 10 or 4, 0)
+    local fs = W.Label(b, text, opts.size or 12, KIND[kind].text, kind == "nav" and "LEFT" or "CENTER", kind == "primary" or kind == "tab")
+    fs:SetPoint("LEFT", kind == "nav" and 14 or 4, 0)
     fs:SetPoint("RIGHT", -4, 0)
     b.label = fs
+    if kind == "nav" then
+        local bar = T.Solid(b, "OVERLAY", { 1, 1, 1, 0.95 })
+        bar:SetWidth(3)
+        bar:SetPoint("TOPLEFT", 0, 0)
+        bar:SetPoint("BOTTOMLEFT", 0, 0)
+        b.accent = bar
+    elseif kind == "tab" then
+        local bar = T.Solid(b, "OVERLAY", { 1, 1, 1, 0.95 })
+        bar:SetHeight(2)
+        bar:SetPoint("BOTTOMLEFT", 4, 0)
+        bar:SetPoint("BOTTOMRIGHT", -4, 0)
+        b.accent = bar
+    end
+    if b.accent then b.accent:Hide() end
     b:SetScript("OnEnter", function(self)
         self.brlHover = true
         paintButton(self)
@@ -225,16 +192,23 @@ function W.RefreshPermissionButtons()
     end
 end
 
--- 창 닫기 버튼 (게임 기본 빨간 X)
+-- 창 닫기 버튼: 투명 사각형 + ×, 마우스를 올리면 붉은 바탕
 function W.CloseButton(parent, onClick, size)
-    local b = tryTemplate("Button", parent, "UIPanelCloseButton")
-    if not b then
-        b = cf("Button", parent)
-        b:SetNormalTexture(T.TEX.closeUp)
-        b:SetPushedTexture(T.TEX.closeDown)
-        b:SetHighlightTexture(T.TEX.closeHighlight, "ADD")
-    end
-    b:SetSize(size or 30, size or 30)
+    size = size or 24
+    local b = cf("Button", parent, "BackdropTemplate")
+    T.ApplyBackdrop(b, NONE, NONE, "small")
+    b:SetSize(size, size)
+    local x = W.Label(b, "×", math.floor(size * 0.72), "muted", "CENTER")
+    x:SetPoint("CENTER", 0, 1)
+    b.glyph = x
+    b:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.62, 0.14, 0.14, 0.95)
+        T.SetTextColor(self.glyph, "goldBright")
+    end)
+    b:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(0, 0, 0, 0)
+        T.SetTextColor(self.glyph, "muted")
+    end)
     b:SetScript("OnClick", function(self, button)
         if onClick then BRL.SafeCall("닫기", onClick, self, button) else parent:Hide() end
     end)
@@ -242,40 +216,35 @@ function W.CloseButton(parent, onClick, size)
     return b
 end
 
--- 기본 체크 상자 (UI-CheckBox 텍스처). 16px 영역에 26px 그림을 겹쳐 기본 옵션 창과 같은 크기로 보이게 한다.
+-- 체크 상자: 16px 사각형, 체크하면 흰 사각 표시
 function W.CheckBox(parent, label, onChange, tooltip)
-    local b = cf("Button", parent)
+    local b = cf("Button", parent, "BackdropTemplate")
     b:SetSize(16, 16)
-    local function art(path, layer, blend)
-        local t = b:CreateTexture(nil, layer)
-        setTex(t, path, blend)
-        t:SetPoint("TOPLEFT", -5, 5)
-        t:SetPoint("BOTTOMRIGHT", 5, -5)
-        return t
-    end
-    b.box = art(T.TEX.checkUp, "ARTWORK")
-    b:SetHighlightTexture(art(T.TEX.checkHighlight, "HIGHLIGHT", "ADD"))
-    local mark = art(T.TEX.check, "OVERLAY")
+    T.ApplyBackdrop(b, C.input, { 0.36, 0.36, 0.4, 1 }, "small")
+    local mark = T.Solid(b, "OVERLAY", { 0.94, 0.94, 0.96, 1 })
+    mark:SetPoint("TOPLEFT", 4, -4)
+    mark:SetPoint("BOTTOMRIGHT", -4, 4)
     mark:Hide()
     b.mark = mark
     b.checked = false
     local fs = W.Label(b, label or "", 12)
-    fs:SetPoint("LEFT", b, "RIGHT", 5, 0)
+    fs:SetPoint("LEFT", b, "RIGHT", 7, 0)
     b.label = fs
-    -- 글자를 눌러도 체크되게
     local function hitRect()
         local w = (fs.GetStringWidth and fs:GetStringWidth()) or 0
-        if b.SetHitRectInsets and w > 0 then b:SetHitRectInsets(0, -(w + 6), 0, 0) end
+        if b.SetHitRectInsets and w > 0 then b:SetHitRectInsets(0, -(w + 8), 0, 0) end
     end
     hitRect()
     function b:SetLabel(t) fs:SetText(t or "") hitRect() end
     function b:SetChecked(v)
         self.checked = v and true or false
         if self.checked then self.mark:Show() else self.mark:Hide() end
+        local c = self.checked and C.border or { 0.36, 0.36, 0.4, 1 }
+        self:SetBackdropBorderColor(c[1], c[2], c[3], 1)
     end
     function b:GetChecked() return self.checked end
-    b:SetScript("OnMouseDown", function(self) if self.box then self.box:SetTexture(T.TEX.checkDown) end end)
-    b:SetScript("OnMouseUp", function(self) if self.box then self.box:SetTexture(T.TEX.checkUp) end end)
+    b:SetScript("OnEnter", function(self) if not self.checked then self:SetBackdropBorderColor(0.65, 0.65, 0.7, 1) end end)
+    b:SetScript("OnLeave", function(self) self:SetChecked(self.checked) end)
     b:SetScript("OnClick", function(self)
         self:SetChecked(not self.checked)
         BRL.API.PlaySound(self.checked and "IG_MAINMENU_OPTION_CHECKBOX_ON" or "IG_MAINMENU_OPTION_CHECKBOX_OFF")
@@ -285,39 +254,31 @@ function W.CheckBox(parent, label, onChange, tooltip)
     return b
 end
 
--- 기본 입력칸 (InputBoxTemplate). 없으면 얇은 테두리 상자
+-- 입력칸
+local FOCUS = { 0.78, 0.78, 0.84, 1 }
 function W.EditBox(parent, width, height, opts)
     opts = opts or {}
     local holder = cf("Frame", parent, "BackdropTemplate")
     holder:SetSize(width or 120, height or 22)
-    local eb = tryTemplate("EditBox", holder, "InputBoxTemplate")
-    local textLeft
-    if eb then
-        holder.stock = true
-        eb:SetPoint("TOPLEFT", 7, 0)
-        eb:SetPoint("BOTTOMRIGHT", -2, 0)
-        textLeft = 7
-    else
-        T.ApplyBackdrop(holder, T.colors.input, T.colors.borderDim, "small")
-        eb = cf("EditBox", holder)
-        eb:SetPoint("TOPLEFT", 5, -2)
-        eb:SetPoint("BOTTOMRIGHT", -5, 2)
-        textLeft = 6
-    end
+    T.ApplyBackdrop(holder, C.input, C.buttonBorder, "small")
+    local eb = cf("EditBox", holder)
+    eb:SetPoint("TOPLEFT", 7, -2)
+    eb:SetPoint("BOTTOMRIGHT", -6, 2)
     T.SetFont(eb, opts.size or 12)
-    eb:SetTextColor(T.colors.text[1], T.colors.text[2], T.colors.text[3])
+    eb:SetTextColor(C.text[1], C.text[2], C.text[3])
     eb:SetAutoFocus(false)
     if opts.numeric and eb.SetNumeric then eb:SetNumeric(true) end
     if opts.maxLetters then eb:SetMaxLetters(opts.maxLetters) end
     local ph = W.Label(holder, opts.placeholder or "", 11, "disabled")
-    ph:SetPoint("LEFT", textLeft, 0)
+    ph:SetPoint("LEFT", 7, 0)
     ph:SetPoint("RIGHT", -4, 0)
     holder.placeholder = ph
     local function updatePH()
         if (eb:GetText() or "") == "" and not eb.hasFocus then ph:Show() else ph:Hide() end
     end
     local function focusBorder(on)
-        if not holder.stock then T.ApplyBackdrop(holder, T.colors.input, on and T.colors.border or T.colors.borderDim, "small") end
+        local c = on and FOCUS or C.buttonBorder
+        holder:SetBackdropBorderColor(c[1], c[2], c[3], c[4] or 1)
     end
     eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     eb:SetScript("OnEnterPressed", function(self)
@@ -369,7 +330,7 @@ end
 -- 여러 줄 입력/복사용 텍스트 영역
 function W.TextArea(parent, width, height, opts)
     opts = opts or {}
-    local holder = W.Panel(parent, T.colors.input, T.colors.borderDim, "box")
+    local holder = W.Panel(parent, C.input, C.buttonBorder, "box")
     holder:SetSize(width or 300, height or 120)
     local sf = cf("ScrollFrame", holder)
     sf:SetPoint("TOPLEFT", 8, -7)
@@ -378,12 +339,16 @@ function W.TextArea(parent, width, height, opts)
     eb:SetMultiLine(true)
     eb:SetAutoFocus(false)
     T.SetFont(eb, opts.size or 12)
-    eb:SetTextColor(T.colors.text[1], T.colors.text[2], T.colors.text[3])
+    eb:SetTextColor(C.text[1], C.text[2], C.text[3])
     eb:SetWidth((width or 300) - 18)
     eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    eb:SetScript("OnEditFocusGained", function(self) W.focusedEdit = self end)
+    eb:SetScript("OnEditFocusGained", function(self)
+        W.focusedEdit = self
+        holder:SetBackdropBorderColor(FOCUS[1], FOCUS[2], FOCUS[3], 1)
+    end)
     eb:SetScript("OnEditFocusLost", function(self)
         if W.focusedEdit == self then W.focusedEdit = nil end
+        holder:SetBackdropBorderColor(C.buttonBorder[1], C.buttonBorder[2], C.buttonBorder[3], 1)
         if opts.onCommit then BRL.SafeCall("메모", opts.onCommit, self:GetText(), self) end
     end)
     eb:SetScript("OnCursorChanged", function(_, _, y, _, h)
@@ -420,10 +385,10 @@ function W.TextArea(parent, width, height, opts)
 end
 
 ---------------------------------------------------------------------------
--- 드롭다운 (자체 구현 팝업 목록, 기본 드롭다운 메뉴 모양)
+-- 드롭다운 (자체 구현 팝업 목록)
 ---------------------------------------------------------------------------
 local popup
-local POPUP_ROW, POPUP_PAD = 18, 8
+local POPUP_ROW, POPUP_PAD = 20, 4
 local function getPopup()
     if popup then return popup end
     popup = W.Panel(UIParent, nil, nil, "tooltip")
@@ -445,8 +410,8 @@ local function getPopup()
             if item and i <= self.visible then
                 local cur = item.value == self.current
                 btn.label:SetText(item.text)
-                T.SetTextColor(btn.label, cur and "gold" or "text")
-                if cur then btn.check:Show() else btn.check:Hide() end
+                T.SetTextColor(btn.label, cur and "goldBright" or "text")
+                if cur then btn.cur:Show() else btn.cur:Hide() end
                 btn.item = item
                 btn:Show()
             else
@@ -468,12 +433,10 @@ function W.Dropdown(parent, width, items, onSelect, opts)
     local h = opts.height or 22
     local b = W.Button(parent, opts.placeholder or "선택", width or 140, h, nil, { kind = "dropdown" })
     b.label:SetJustifyH("LEFT")
-    b.label:SetPoint("LEFT", 7, 0)
-    b.label:SetPoint("RIGHT", -(h - 2), 0)
-    local arrow = b:CreateTexture(nil, "OVERLAY")
-    setTex(arrow, T.TEX.dropArrowUp)
-    arrow:SetSize(h - 4, h - 4)
-    arrow:SetPoint("RIGHT", -1, 0)
+    b.label:SetPoint("LEFT", 8, 0)
+    b.label:SetPoint("RIGHT", -20, 0)
+    local arrow = W.Label(b, "▼", 8, "muted", "CENTER")
+    arrow:SetPoint("RIGHT", -7, 0)
     b.arrow = arrow
     b.items = items
     b.value = nil
@@ -493,8 +456,6 @@ function W.Dropdown(parent, width, items, onSelect, opts)
     end
     function b:GetValue() return self.value end
     function b:SetItems(list) self.items = list self:SetValue(self.value, true) end
-    b:SetScript("OnMouseDown", function(self) if self:IsEnabled() then self.arrow:SetTexture(T.TEX.dropArrowDown) end end)
-    b:SetScript("OnMouseUp", function(self) self.arrow:SetTexture(T.TEX.dropArrowUp) end)
     b:SetScript("OnClick", function(self)
         local p = getPopup()
         if p:IsShown() and p.owner == self then p:Hide() return end
@@ -509,16 +470,14 @@ function W.Dropdown(parent, width, items, onSelect, opts)
             btn:SetHeight(POPUP_ROW)
             btn:SetPoint("TOPLEFT", POPUP_PAD, -POPUP_PAD - (i - 1) * POPUP_ROW)
             btn:SetPoint("RIGHT", -POPUP_PAD, 0)
-            local hl = btn:CreateTexture(nil, "HIGHLIGHT")
-            setTex(hl, T.TEX.rowHighlight, "ADD")
+            local hl = T.Solid(btn, "HIGHLIGHT", C.rowHover)
             hl:SetAllPoints()
-            btn:SetHighlightTexture(hl)
-            btn.check = btn:CreateTexture(nil, "ARTWORK")
-            setTex(btn.check, T.TEX.check)
-            btn.check:SetSize(16, 16)
-            btn.check:SetPoint("LEFT", 0, 0)
+            btn.cur = T.Solid(btn, "ARTWORK", { 1, 1, 1, 0.9 })
+            btn.cur:SetWidth(2)
+            btn.cur:SetPoint("TOPLEFT", 0, -3)
+            btn.cur:SetPoint("BOTTOMLEFT", 0, 3)
             btn.label = W.Label(btn, "", 12)
-            btn.label:SetPoint("LEFT", 18, 0)
+            btn.label:SetPoint("LEFT", 10, 0)
             btn.label:SetPoint("RIGHT", -4, 0)
             btn:SetScript("OnClick", function(bb)
                 local owner = p.owner
@@ -545,8 +504,8 @@ function W.List(parent, opts)
     opts = opts or {}
     local rowH = opts.rowHeight or 20
     local f = W.Panel(parent, T.colors.panel, T.colors.borderDim, "box")
-    local I = 4          -- 툴팁 테두리 안쪽
-    local SB = 12        -- 스크롤 막대 폭
+    local I = 1          -- 1px 선 안쪽
+    local SB = 8         -- 얇은 스크롤 막대 칸
     f.columns = opts.columns or {}
     f.data = {}
     f.offset = 0
@@ -566,25 +525,25 @@ function W.List(parent, opts)
     hline:SetHeight(1)
     hline:SetPoint("BOTTOMLEFT", 0, 0)
     hline:SetPoint("BOTTOMRIGHT", 0, 0)
-    hline:SetVertexColor(1, 1, 1, 0.15)
+    hline:SetVertexColor(1, 1, 1, 0.1)
     if opts.noHeader then header:Hide() end
     f.header = header
     f.headerCells = {}
 
     local scroll = cf("Slider", f)
     scroll:SetOrientation("VERTICAL")
-    scroll:SetPoint("TOPRIGHT", -I, -I - headerH)
-    scroll:SetPoint("BOTTOMRIGHT", -I, I)
-    scroll:SetWidth(SB - 2)
+    scroll:SetPoint("TOPRIGHT", -I - 2, -I - headerH - 2)
+    scroll:SetPoint("BOTTOMRIGHT", -I - 2, I + 2)
+    scroll:SetWidth(4)
     local track = scroll:CreateTexture(nil, "BACKGROUND")
     track:SetTexture(T.WHITE)
     track:SetAllPoints()
-    track:SetVertexColor(0, 0, 0, 0.45)
-    -- 기본 스크롤 막대 손잡이
+    track:SetVertexColor(1, 1, 1, 0.04)
+    -- 얇은 손잡이
     local thumb = scroll:CreateTexture(nil, "OVERLAY")
-    thumb:SetTexture(T.TEX.scrollKnob)
-    if thumb.SetTexCoord then thumb:SetTexCoord(0.25, 0.75, 0.125, 0.875) end
-    thumb:SetSize(SB - 2, 24)
+    thumb:SetTexture(T.WHITE)
+    thumb:SetVertexColor(0.55, 0.55, 0.6, 0.9)
+    thumb:SetSize(4, 28)
     scroll:SetThumbTexture(thumb)
     scroll:SetMinMaxValues(0, 0)
     scroll:SetValueStep(1)
@@ -624,7 +583,7 @@ function W.List(parent, opts)
             local cell = self.headerCells[i]
             if not cell then
                 cell = cf("Button", header)
-                cell.text = W.Label(cell, "", 11, "gold")
+                cell.text = W.Label(cell, "", 11, "muted")
                 local chl = cell:CreateTexture(nil, "HIGHLIGHT")
                 chl:SetTexture(T.WHITE)
                 chl:SetAllPoints()
@@ -659,10 +618,7 @@ function W.List(parent, opts)
             bg:SetTexture(T.WHITE)
             bg:SetAllPoints()
             r.bg = bg
-            -- 친구 목록과 같은 기본 강조 막대
-            local hl = r:CreateTexture(nil, "HIGHLIGHT")
-            hl:SetTexture(T.TEX.rowHighlight)
-            if hl.SetBlendMode then hl:SetBlendMode("ADD") end
+            local hl = T.Solid(r, "HIGHLIGHT", T.colors.rowHover)
             hl:SetAllPoints()
             r.cells = {}
             r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -689,8 +645,8 @@ function W.List(parent, opts)
                     local title, lines = opts.tooltip(row.data)
                     if title then
                         GameTooltip:SetOwner(row, "ANCHOR_CURSOR")
-                        GameTooltip:SetText(title, 1, 0.82, 0)
-                        for _, l in ipairs(lines or {}) do GameTooltip:AddLine(l, 1, 1, 1, true) end
+                        GameTooltip:SetText(title, 1, 1, 1)
+                        for _, l in ipairs(lines or {}) do GameTooltip:AddLine(l, 0.78, 0.78, 0.82, true) end
                         GameTooltip:Show()
                     end
                 end
@@ -774,12 +730,12 @@ end
 ---------------------------------------------------------------------------
 function W.Tabs(parent, tabs, onSelect)
     local holder = cf("Frame", parent)
-    holder:SetHeight(24)
+    holder:SetHeight(26)
     holder.buttons = {}
     holder.current = nil
     local x = 0
     for i, t in ipairs(tabs) do
-        local b = W.Button(holder, t.text, t.width or 100, 22, function()
+        local b = W.Button(holder, t.text, t.width or 100, 24, function()
             holder:Select(t.key)
         end, { kind = "tab" })
         b:SetPoint("LEFT", x, 0)
@@ -807,7 +763,7 @@ function W.StatTile(parent, label, width, height)
     f.title = W.Label(f, label, 11, "muted")
     f.title:SetPoint("TOPLEFT", 9, -7)
     f.title:SetPoint("RIGHT", -7, 0)
-    f.value = W.Label(f, "-", 15, "goldBright")
+    f.value = W.Label(f, "-", 15, "goldBright", nil, true)
     f.value:SetPoint("BOTTOMLEFT", 9, 7)
     f.value:SetPoint("RIGHT", -7, 0)
     -- 값이 길면 칸에 들어갈 때까지 글자 크기를 줄임 (잘림 방지)
@@ -817,10 +773,10 @@ function W.StatTile(parent, label, width, height)
         T.SetTextColor(v, color or "goldBright")
         local avail = (self:GetWidth() or 150) - 16
         local size = 15
-        T.SetFont(v, size)
+        T.SetFont(v, size, nil, true)
         while size > 10 and (v:GetStringWidth() or 0) > avail do
             size = size - 1
-            T.SetFont(v, size)
+            T.SetFont(v, size, nil, true)
         end
     end
     return f

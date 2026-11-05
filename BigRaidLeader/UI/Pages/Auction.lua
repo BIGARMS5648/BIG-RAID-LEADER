@@ -22,7 +22,7 @@ function A.LinkAwardToTrade(aw)
             if avail > 0 then
                 items[#items + 1] = {
                     value = tr.id,
-                    text = (tr.partnerKey == aw.winnerKey and "|cff20ff20★|r " or "|cff9d9d9d(대리)|r ") .. (tr.partnerName or "?") .. " " .. U.FormatDateTime(tr.at),
+                    text = (tr.partnerKey == aw.winnerKey and "|cff61db80★|r " or "|cff8f8f99(대리)|r ") .. (tr.partnerName or "?") .. " " .. U.FormatDateTime(tr.at),
                     sub = "미연결 " .. Money.Format(avail),
                 }
             end
@@ -159,7 +159,7 @@ local function build(page)
     pa.autoNextStop = W.Button(ctl, "자동 시작 취소", 96, 24, function() AU:CancelAutoNext() end, { perm = "finance.edit" })
     pa.autoNextStop:SetPoint("TOPLEFT", 318, -57)
 
-    local bh = W.Section(pa, "입찰 내역")
+    local bh = W.Section(pa, "입찰 내역", 430)
     bh:SetPoint("TOPLEFT", 4, -246)
     pa.bids = W.List(pa, {
         columns = {
@@ -168,7 +168,7 @@ local function build(page)
             { title = "금액", width = 110, align = "RIGHT", render = function(b) return Money.Format(b.amount) end },
             { title = "결과", width = 0, render = function(b)
                 if b.retracted then return T.Color("muted", "철회") end
-                if b.accepted then return T.Color("green", "유효") .. " |cff9d9d9d" .. (b.source == "chat" and "채팅" or "수동") .. "|r" end
+                if b.accepted then return T.Color("green", "유효") .. " |cff8f8f99" .. (b.source == "chat" and "채팅" or "수동") .. "|r" end
                 return T.Color("red", b.rejectReason or "거부")
             end },
         },
@@ -376,7 +376,7 @@ local function refresh(page)
             cur.icon:Show()
             cur.item:SetText(itemText(a))
             pa.countBtn:SetText("카운트 " .. AU:CountSeconds() .. "초")
-            cur.state:SetText(BRL.Label("AUC_", a.status) .. (a.countEndsClock and " · |cffff2020카운트 중|r" or "") .. (a.endReason == "interrupted" and " (재접속으로 중단됨 - 확인 후 낙찰/유찰)" or "") ..
+            cur.state:SetText(BRL.Label("AUC_", a.status) .. (a.countEndsClock and " · |cffff6161카운트 중|r" or "") .. (a.endReason == "interrupted" and " (재접속으로 중단됨 - 확인 후 낙찰/유찰)" or "") ..
                 (a.buyout and a.buyout > 0 and (" · 즉시 낙찰 " .. Money.Format(a.buyout)) or ""))
             cur.high:SetText(a.highAmount and Money.Format(a.highAmount) or ("시작가 " .. Money.Format(a.startPrice)))
             cur.bidder:SetText(a.highBidder and ("최고 입찰자: " .. API.ShortName(a.highBidder)) or "입찰 없음")

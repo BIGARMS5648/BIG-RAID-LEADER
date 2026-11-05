@@ -129,3 +129,49 @@ T.test("레이아웃 검사기 자체 확인: 겹침/잘림을 실제로 잡아�
     local _, clip2 = Lay.Overlaps(root, { bounds = root })
     T.eq(#clip2, 1, "영역 밖 1건")
 end)
+
+-- 텍스처 파일: 애드온 Media 의 TGA 는 게임이 읽을 수 있는 형식(무압축 트루컬러, 2의 거듭제곱 크기)이어야 함
+local function readTGA(gamePath)
+    local rel = gamePath:gsub("^Interface\\AddOns\\", ""):gsub("\\", "/")
+    local fh = io.open(rel, "rb")
+    if not fh then return nil, rel end
+    local data = fh:read("*a")
+    fh:close()
+    local b = function(i) return data:byte(i) end
+    local w = b(13) + b(14) * 256
+    local h = b(15) + b(16) * 256
+    return { type = b(3), bpp = b(17), desc = b(18), w = w, h = h, data = data, size = #data }, rel
+end
+local function pow2(n) return n > 0 and math.floor(math.log(n) / math.log(2) + 0.5) == math.log(n) / math.log(2) end
+
+T.test("미디어: 표범 아이콘/로고/머리 무늬 TGA 형식", function()
+    local BRL = T.fresh()
+    local TX = BRL.Theme.TEX
+    for _, key in ipairs({ "minimapIcon", "logo", "headerPoly" }) do
+        local t, rel = readTGA(TX[key])
+        T.ok(t, "파일 있음: " .. tostring(rel))
+        T.eq(t.type, 2, key .. " 무압축 트루컬러")
+        T.ok(t.bpp == 32 or t.bpp == 24, key .. " 24/32비트")
+        T.ok(pow2(t.w) and pow2(t.h), key .. " 크기 2의 거듭제곱 " .. t.w .. "x" .. t.h)
+        local exp = 18 + t.w * t.h * t.bpp / 8
+        T.ok(t.size == exp or t.size == exp + 26, key .. " 데이터 길이 (TGA 2.0 꼬리말 26바이트 허용) " .. t.size)
+    end
+    -- 미니맵 아이콘은 원형: 모서리는 투명, 가운데는 불투명 (원점 왼쪽 아래, BGRA)
+    local ic = readTGA(TX.minimapIcon)
+    T.eq(ic.bpp, 32, "아이콘은 알파 포함")
+    local function alpha(x, y) return ic.data:byte(18 + (y * ic.w + x) * 4 + 4) end
+    T.eq(alpha(0, 0), 0, "모서리 투명")
+    T.eq(alpha(ic.w - 1, ic.h - 1), 0, "반대 모서리 투명")
+    T.eq(alpha(ic.w / 2, ic.h / 2), 255, "가운데 불투명")
+end)
+
+T.test("미니맵 버튼: 원형 표범 아이콘 + 게임 기본 추적 테두리", function()
+    local BRL = T.fresh()
+    BRL.Minimap.button = nil
+    BRL.Minimap:Create()
+    local b = BRL.Minimap.button
+    T.ok(b, "버튼 생성")
+    T.eq(b.icon:GetTexture(), BRL.Theme.TEX.minimapIcon, "업로드한 표범 이미지 아이콘")
+    T.eq(b.border:GetTexture(), "Interface\\Minimap\\MiniMap-TrackingBorder", "기본 미니맵 테두리 에셋")
+    T.eq(b.icon:GetWidth(), 20, "테두리 안쪽 크기")
+end)

@@ -20,11 +20,11 @@ local function makeFrame(name, width, height)
     f:Hide()
     _G[name] = f
     table.insert(UISpecialFrames, name)
-    f.title = W.Label(f, "", 14, "gold")
-    f.title:SetPoint("TOPLEFT", 18, -17)
+    f.title = W.Label(f, "", 14, "goldBright", nil, true)
+    f.title:SetPoint("TOPLEFT", 18, -16)
     f.title:SetPoint("RIGHT", -38, 0)
-    local close = W.CloseButton(f, function() f:Hide() end, 30)
-    close:SetPoint("TOPRIGHT", -5, -5)
+    local close = W.CloseButton(f, function() f:Hide() end, 24)
+    close:SetPoint("TOPRIGHT", -8, -8)
     return f
 end
 
@@ -61,7 +61,7 @@ function D.Confirm(text, onAccept, opts)
     f:SetHeight(math.max(160, h))
     f.onAccept, f.onCancel = onAccept, opts.onCancel
     -- 위험한 작업은 경고 문구 색으로 표시 (버튼은 게임 기본 모양 유지)
-    T.SetTextColor(f.title, opts.danger and "red" or "gold")
+    T.SetTextColor(f.title, opts.danger and "red" or "goldBright")
     f:Show()
     f:Raise()
     return f

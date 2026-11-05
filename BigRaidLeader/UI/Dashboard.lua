@@ -59,7 +59,7 @@ local function build(page)
     flow:Add(W.Button(page, "HUD", 50, 26, function() BRL.HUD:Toggle() end, { tooltip = { "메인 창 없이 경매/거래/풀링 판정/도핑을 보여주는 작은 창 (/brl hud)" } }))
 
     y = y + 60
-    local warn = W.Section(page, "주의 사항")
+    local warn = W.Section(page, "주의 사항", 520)
     warn:SetPoint("TOPLEFT", 4, -y)
     page.warnings = W.Paragraph(page, "", 520, 12)
     page.warnings:SetPoint("TOPLEFT", 4, -y - 22)

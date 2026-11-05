@@ -1,6 +1,6 @@
 -- BIG RAID LEADER - 미니맵 버튼
 local _, BRL = ...
-local W = BRL.Widgets
+local T, W = BRL.Theme, BRL.Widgets
 
 local MM = {}
 BRL.Minimap = MM
@@ -14,26 +14,25 @@ end
 
 function MM:Create()
     if self.button or not _G.Minimap then return end
-    -- 기본 미니맵 버튼 모양 (둥근 추적 테두리 + 아이콘)
+    -- 미니맵 버튼: 원형 표범 아이콘(애드온 Media, 가장자리를 원형 투명 처리한 TGA) + 게임 기본 추적 테두리
+    -- (마스크 텍스처 없이도 둥글게 보이도록 이미지 자체를 원형으로 만듦)
     local b = CreateFrame("Button", "BigRaidLeaderMinimapButton", Minimap)
     b:SetSize(31, 31)
     b:SetFrameStrata("MEDIUM")
     b:SetFrameLevel(8)
-    local bg = b:CreateTexture(nil, "BACKGROUND")
-    bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
-    bg:SetSize(20, 20)
-    bg:SetPoint("TOPLEFT", 7, -5)
     local icon = b:CreateTexture(nil, "ARTWORK")
-    icon:SetTexture("Interface\\Icons\\INV_Misc_Coin_02")
-    icon:SetSize(18, 18)
-    icon:SetPoint("TOPLEFT", 7, -6)
-    if icon.SetTexCoord then icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+    icon:SetTexture(T.TEX.minimapIcon)
+    icon:SetSize(20, 20)
+    icon:SetPoint("TOPLEFT", 7, -5)
     b.icon = icon
     local border = b:CreateTexture(nil, "OVERLAY")
-    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    border:SetTexture(T.TEX.minimapBorder)
     border:SetSize(53, 53)
     border:SetPoint("TOPLEFT")
-    b:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight", "ADD")
+    b.border = border
+    b:SetHighlightTexture(T.TEX.minimapHighlight, "ADD")
+    b:SetScript("OnMouseDown", function(self) self.icon:SetPoint("TOPLEFT", 8, -6) end)
+    b:SetScript("OnMouseUp", function(self) self.icon:SetPoint("TOPLEFT", 7, -5) end)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:RegisterForDrag("LeftButton")
     b:SetScript("OnClick", function(_, button)

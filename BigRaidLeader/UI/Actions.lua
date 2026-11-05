@@ -34,7 +34,7 @@ function A.LinkTradeToAward(tr)
         if st.outstanding > 0 then
             items[#items + 1] = {
                 value = aw.id,
-                text = (aw.winnerKey == tr.partnerKey and "|cff20ff20★|r " or "|cff9d9d9d(대리)|r ") .. BRL.Data.ColorName(aw.winnerName, aw.winnerClass) .. " - " .. (aw.itemLink or aw.itemName or "?"),
+                text = (aw.winnerKey == tr.partnerKey and "|cff61db80★|r " or "|cff8f8f99(대리)|r ") .. BRL.Data.ColorName(aw.winnerName, aw.winnerClass) .. " - " .. (aw.itemLink or aw.itemName or "?"),
                 sub = "낙찰금 " .. Money.Format(st.outstanding),
             }
         end
@@ -86,7 +86,7 @@ function A.LinkTradeToPayout(tr)
         if st.remaining > 0 then
             items[#items + 1] = {
                 value = ob.id,
-                text = (ob.memberKey == tr.partnerKey and "|cff20ff20★|r " or "") .. (ob.subgroup or 1) .. "파티 " .. BRL.Data.ColorName(ob.name, ob.class) .. (ob.kind == "fee" and " (수수료)" or ""),
+                text = (ob.memberKey == tr.partnerKey and "|cff61db80★|r " or "") .. (ob.subgroup or 1) .. "파티 " .. BRL.Data.ColorName(ob.name, ob.class) .. (ob.kind == "fee" and " (수수료)" or ""),
                 sub = "남은 " .. Money.Format(st.remaining),
             }
         end
